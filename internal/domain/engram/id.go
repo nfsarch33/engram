@@ -1,16 +1,16 @@
 package engram
 
 import (
-	"math/rand"
+	"crypto/rand"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 )
 
 // NewMemoryID generates a new time-ordered ULID-based MemoryID.
+// Uses crypto/rand for entropy so concurrent calls never collide.
 func NewMemoryID() MemoryID {
-	entropy := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
-	return MemoryID(ulid.MustNew(ulid.Timestamp(time.Now().UTC()), entropy).String())
+	return MemoryID(ulid.MustNew(ulid.Timestamp(time.Now().UTC()), rand.Reader).String())
 }
 
 // ParseMemoryID validates and returns a MemoryID from a raw string.

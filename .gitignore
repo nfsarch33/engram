@@ -1,0 +1,13 @@
+# Build artefacts
+/engramd
+/bin/
+*.db
+*.db-wal
+*.db-shm
+
+# Go test cache
+*.test
+
+# IDE
+.idea/
+.vscode/
