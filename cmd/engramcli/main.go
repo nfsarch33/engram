@@ -34,6 +34,8 @@ Commands:
   search    Semantic search
   get       Get a memory by ID
   delete    Delete a memory by ID
+  doctor    Run diagnostic checks against the daemon
+  migrate   Import memories from another system (e.g. Mem0 OSS)
 
 Use engramcli <command> --help for flag details.
 `
@@ -57,6 +59,10 @@ func Run(deps Deps, args []string) int {
 		return runGet(deps, rest)
 	case "delete":
 		return runDelete(deps, rest)
+	case "doctor":
+		return runDoctor(deps, rest)
+	case "migrate":
+		return runMigrate(deps, rest)
 	default:
 		fmt.Fprintf(deps.Stderr, "engramcli: unknown command %q\n\n%s", cmd, usageText)
 		return 1
