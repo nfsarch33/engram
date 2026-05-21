@@ -193,12 +193,8 @@ func (a *Adapter) handleGetAll(ctx context.Context, p map[string]any) (any, erro
 	})
 }
 
-func (a *Adapter) handleDoctor(_ context.Context) (any, error) {
-	return map[string]any{
-		"status":  "ok",
-		"service": "engram",
-		"message": "Engram memory engine is operational",
-	}, nil
+func (a *Adapter) handleDoctor(ctx context.Context) (any, error) {
+	return a.svc.HealthCheck(ctx), nil
 }
 
 func strVal(p map[string]any, key string) string {

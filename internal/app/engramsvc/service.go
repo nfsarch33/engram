@@ -84,3 +84,42 @@ type UpdateRequest struct {
 	ID   engram.MemoryID
 	Text string
 }
+
+// HealthResult reports the status of each subsystem.
+type HealthResult struct {
+	Status    string            `json:"status"`
+	Service   string            `json:"service"`
+	Subsystem map[string]string `json:"subsystem"`
+}
+
+// HealthCheck probes vector store, history store, and embedder connectivity.
+func (s *Service) HealthCheck(ctx context.Context) HealthResult {
+	result := HealthResult{
+		Status:    "ok",
+		Service:   "engram",
+		Subsystem: map[string]string{},
+	}
+
+	if err := s.vec.EnsureCollection(ctx, s.cfg.CollectionName, s.cfg.EmbeddingDim); err != nil {
+		result.Subsystem["vector_store"] = "error: " + err.Error()
+		result.Status = "degraded"
+	} else {
+		result.Subsystem["vector_store"] = "ok"
+	}
+
+	if _, err := s.hist.ListRecords(ctx, engram.HistoryFilter{UserID: "__health_probe__"}); err != nil {
+		result.Subsystem["history_store"] = "error: " + err.Error()
+		result.Status = "degraded"
+	} else {
+		result.Subsystem["history_store"] = "ok"
+	}
+
+	if _, err := s.embedder.EmbedBatch(ctx, []string{"health check"}); err != nil {
+		result.Subsystem["embedder"] = "error: " + err.Error()
+		result.Status = "degraded"
+	} else {
+		result.Subsystem["embedder"] = "ok"
+	}
+
+	return result
+}

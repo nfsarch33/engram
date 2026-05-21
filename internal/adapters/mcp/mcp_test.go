@@ -215,11 +215,19 @@ func TestMem0Doctor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mem0_doctor: %v", err)
 	}
-	m, ok := result.(map[string]any)
+	hr, ok := result.(engramsvc.HealthResult)
 	if !ok {
-		t.Fatalf("mem0_doctor: expected map, got %T", result)
+		t.Fatalf("mem0_doctor: expected HealthResult, got %T", result)
 	}
-	if m["status"] != "ok" {
-		t.Errorf("mem0_doctor: want status=ok, got %v", m["status"])
+	if hr.Status != "ok" {
+		t.Errorf("mem0_doctor: want status=ok, got %v", hr.Status)
+	}
+	if hr.Service != "engram" {
+		t.Errorf("mem0_doctor: want service=engram, got %v", hr.Service)
+	}
+	for _, sub := range []string{"vector_store", "history_store", "embedder"} {
+		if hr.Subsystem[sub] != "ok" {
+			t.Errorf("mem0_doctor: subsystem %s = %q, want ok", sub, hr.Subsystem[sub])
+		}
 	}
 }
