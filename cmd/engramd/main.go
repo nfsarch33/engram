@@ -1,4 +1,4 @@
-// Command engramd is the Engram memory engine daemon (HTTP + MCP).
+// Command engramd is the Engram memory engine daemon (HTTP + MCP stdio).
 package main
 
 import (
@@ -18,36 +18,62 @@ import (
 	"github.com/nfsarch33/engram/internal/adapters/history/sqlite"
 	"github.com/nfsarch33/engram/internal/adapters/httpapi"
 	llmopenai "github.com/nfsarch33/engram/internal/adapters/llm/openai"
+	mcpadapter "github.com/nfsarch33/engram/internal/adapters/mcp"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/inmem"
 	"github.com/nfsarch33/engram/internal/app/engramsvc"
 	"github.com/nfsarch33/engram/internal/config"
 	"github.com/nfsarch33/engram/internal/domain/engram"
 )
 
+// version is overridden at build time via -ldflags "-X main.version=...".
+var version = "dev"
+
+type runOpts struct {
+	noEmbed  bool
+	mcpStdio bool
+	noHTTP   bool
+}
+
 func main() {
-	noEmbed := flag.Bool("no-embed", false, "start without embedder (dev/test mode; search unavailable)")
+	var opts runOpts
+	flag.BoolVar(&opts.noEmbed, "no-embed", false, "start without embedder (dev/test mode; search unavailable)")
+	flag.BoolVar(&opts.mcpStdio, "mcp-stdio", false, "serve MCP via stdio JSON-RPC (in addition to HTTP unless --no-http)")
+	flag.BoolVar(&opts.noHTTP, "no-http", false, "disable HTTP server (typically combined with --mcp-stdio)")
+	showVer := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if *showVer {
+		fmt.Println(version)
+		return
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	if err := run(ctx, logger, *noEmbed); err != nil {
+	if err := run(ctx, logger, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "engramd: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, logger *slog.Logger, noEmbed bool) error {
+func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
+	if opts.noHTTP && !opts.mcpStdio {
+		return fmt.Errorf("--no-http requires --mcp-stdio (otherwise the daemon would have nothing to serve)")
+	}
+
 	cfg := config.Load()
 
-	logger.Info("engramd starting", "version", "0.2.0",
+	logger.Info("engramd starting",
+		"version", version,
 		"addr", cfg.Addr,
 		"db", cfg.DBPath,
 		"embedder", cfg.HasEmbedder(),
 		"llm", cfg.HasLLM(),
-		"no_embed", noEmbed,
+		"no_embed", opts.noEmbed,
+		"mcp_stdio", opts.mcpStdio,
+		"no_http", opts.noHTTP,
 	)
 
 	hist, err := sqlite.NewStore(cfg.DBPath)
@@ -61,7 +87,7 @@ func run(ctx context.Context, logger *slog.Logger, noEmbed bool) error {
 		return fmt.Errorf("vector store: %w", err)
 	}
 
-	embedder, llm := buildAdapters(cfg, noEmbed)
+	embedder, llm := buildAdapters(cfg, opts.noEmbed)
 
 	svc, err := engramsvc.NewService(vec, hist, llm, embedder, engramsvc.Config{
 		CollectionName: cfg.Collection,
@@ -74,34 +100,54 @@ func run(ctx context.Context, logger *slog.Logger, noEmbed bool) error {
 		return fmt.Errorf("service: %w", err)
 	}
 
-	handler := httpapi.NewHandler(svc)
+	serverErr := make(chan error, 2)
+	var srv *http.Server
 
-	srv := &http.Server{
-		Addr:        cfg.Addr,
-		Handler:     handler,
-		BaseContext: func(net.Listener) context.Context { return ctx },
+	if !opts.noHTTP {
+		handler := httpapi.NewHandler(svc)
+		srv = &http.Server{
+			Addr:        cfg.Addr,
+			Handler:     handler,
+			BaseContext: func(net.Listener) context.Context { return ctx },
+		}
+		go func() {
+			logger.Info("HTTP server listening", "addr", cfg.Addr)
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- fmt.Errorf("http: %w", err)
+				return
+			}
+		}()
 	}
 
-	serverErr := make(chan error, 1)
-	go func() {
-		logger.Info("HTTP server listening", "addr", cfg.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
-		}
-		close(serverErr)
-	}()
+	if opts.mcpStdio {
+		adapter := mcpadapter.NewAdapter(svc)
+		mcpSrv := mcpadapter.NewServer(adapter, "engram", version)
+		go func() {
+			logger.Info("MCP stdio server listening")
+			if err := mcpSrv.Serve(ctx, os.Stdin, os.Stdout); err != nil && !errors.Is(err, context.Canceled) {
+				serverErr <- fmt.Errorf("mcp: %w", err)
+				return
+			}
+			// Stdio EOF or graceful shutdown: cancel parent ctx so HTTP also stops.
+			serverErr <- nil
+		}()
+	}
 
 	select {
 	case err := <-serverErr:
-		return fmt.Errorf("server: %w", err)
+		if err != nil {
+			return err
+		}
 	case <-ctx.Done():
 	}
 
 	logger.Info("engramd shutting down")
-	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutCancel()
-	if err := srv.Shutdown(shutCtx); err != nil {
-		return fmt.Errorf("graceful shutdown: %w", err)
+	if srv != nil {
+		shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutCancel()
+		if err := srv.Shutdown(shutCtx); err != nil {
+			return fmt.Errorf("graceful shutdown: %w", err)
+		}
 	}
 	return nil
 }
