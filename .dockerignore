@@ -1,0 +1,12 @@
+.git/
+.idea/
+.vscode/
+bin/
+engramd
+*.db
+*.db-wal
+*.db-shm
+*.test
+testdata/
+docs/
+README.md

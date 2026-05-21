@@ -1,0 +1,61 @@
+# Local development stack for Engram.
+#
+# Default: only engramd (in-memory vector store). Useful for unit-test-style
+# poking at the HTTP API without external dependencies.
+#
+# Optional Qdrant profile: brings up a local Qdrant container so you can
+# exercise the qdrant adapter without writing to a real cluster.
+#
+#   docker compose up -d                 # engramd only
+#   docker compose --profile qdrant up -d  # engramd + qdrant
+#
+# For a real embedder, point ENGRAM_EMBED_URL at your local Ollama
+# (e.g. http://host.docker.internal:11434/v1) or any OpenAI-compatible
+# endpoint.
+
+services:
+  engramd:
+    build:
+      context: .
+      args:
+        VERSION: dev
+    image: engramd:dev
+    container_name: engramd
+    restart: unless-stopped
+    ports:
+      - "8280:8280"
+    environment:
+      ENGRAM_ADDR: ":8280"
+      ENGRAM_DB_PATH: "/data/engram.db"
+      ENGRAM_COLLECTION: "engram"
+      ENGRAM_EMBEDDING_DIM: "${ENGRAM_EMBEDDING_DIM:-768}"
+      ENGRAM_EMBED_URL: "${ENGRAM_EMBED_URL:-}"
+      ENGRAM_EMBED_MODEL: "${ENGRAM_EMBED_MODEL:-nomic-embed-text}"
+      ENGRAM_EMBED_KEY: "${ENGRAM_EMBED_KEY:-}"
+      ENGRAM_LOG_LEVEL: "${ENGRAM_LOG_LEVEL:-info}"
+    volumes:
+      - engram-data:/data
+    healthcheck:
+      # Distroless has no curl; engramd serves /healthz on its listen port,
+      # which we hit from the host. The container itself relies on the
+      # daemon's own context-cancelled shutdown. Prefer external probes.
+      test: ["CMD", "/app/engramcli", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: engram-qdrant
+    profiles: ["qdrant"]
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+volumes:
+  engram-data:
+  qdrant-data:
