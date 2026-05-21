@@ -19,8 +19,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Collection != "engram" {
 		t.Errorf("default Collection: want engram, got %q", cfg.Collection)
 	}
-	if cfg.EmbeddingDim != 1536 {
-		t.Errorf("default EmbeddingDim: want 1536, got %d", cfg.EmbeddingDim)
+	if cfg.EmbeddingDim != 768 {
+		t.Errorf("default EmbeddingDim: want 768, got %d", cfg.EmbeddingDim)
 	}
 	if cfg.Timeout != 30*time.Second {
 		t.Errorf("default Timeout: want 30s, got %v", cfg.Timeout)
@@ -91,8 +91,8 @@ func TestLoad_InvalidDuration_FallsBackToDefault(t *testing.T) {
 func TestLoad_InvalidInt_FallsBackToDefault(t *testing.T) {
 	t.Setenv("ENGRAM_EMBEDDING_DIM", "notanint")
 	cfg := config.Load()
-	if cfg.EmbeddingDim != 1536 {
-		t.Errorf("bad int fallback: want 1536, got %d", cfg.EmbeddingDim)
+	if cfg.EmbeddingDim != 768 {
+		t.Errorf("bad int fallback: want 768, got %d", cfg.EmbeddingDim)
 	}
 }
 
