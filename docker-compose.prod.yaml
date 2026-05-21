@@ -1,0 +1,72 @@
+# Production deployment for Engram on wsl1.
+# Start with: docker compose -f docker-compose.prod.yaml up -d
+#
+# Prerequisites:
+#   - Docker + Docker Compose on the target machine
+#   - Ollama running at host-accessible port 11434 (for nomic-embed-text)
+#   - ENGRAM_API_KEY and MINIMAX_API_KEY set in .env (or passed directly)
+
+services:
+  engramd:
+    build:
+      context: .
+      args:
+        VERSION: "${ENGRAM_VERSION:-0.3.0}"
+    image: engramd:${ENGRAM_VERSION:-latest}
+    container_name: engramd
+    restart: unless-stopped
+    command: ["--mem0-compat"]
+    ports:
+      - "8280:8280"
+      - "8281:8281"
+    environment:
+      ENGRAM_ADDR: ":8280"
+      ENGRAM_MEM0COMPAT_ADDR: ":8281"
+      ENGRAM_API_KEY: "${ENGRAM_API_KEY}"
+      ENGRAM_DB_PATH: "/data/engram.db"
+      ENGRAM_COLLECTION: "engram"
+      ENGRAM_EMBEDDING_DIM: "768"
+      ENGRAM_EMBED_URL: "http://host.docker.internal:11434"
+      ENGRAM_EMBED_MODEL: "nomic-embed-text"
+      ENGRAM_EMBED_KEY: ""
+      ENGRAM_EMBED_FALLBACK_URL: "https://api.minimax.chat/v1"
+      ENGRAM_EMBED_FALLBACK_KEY: "${MINIMAX_API_KEY:-}"
+      ENGRAM_EMBED_FALLBACK_MODEL: "embo-01"
+      ENGRAM_QDRANT_URL: "http://qdrant:6333"
+      ENGRAM_LLM_URL: "http://host.docker.internal:11434/v1"
+      ENGRAM_LLM_MODEL: "qwen3:8b"
+      ENGRAM_TIMEOUT: "30s"
+      ENGRAM_LOG_LEVEL: "info"
+    volumes:
+      - engram-data:/data
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/engramcli", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: engram-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  engram-data:
+  qdrant-data:

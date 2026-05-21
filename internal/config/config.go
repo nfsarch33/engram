@@ -23,11 +23,20 @@ type Config struct {
 	DBPath     string
 	Collection string
 
-	// Embedding
+	// Qdrant
+	QdrantURL    string
+	QdrantAPIKey string
+
+	// Embedding (primary)
 	EmbeddingDim int
 	EmbedBaseURL string
 	EmbedModel   string
 	EmbedAPIKey  string
+
+	// Embedding fallback (MiniMax)
+	EmbedFallbackURL   string
+	EmbedFallbackModel string
+	EmbedFallbackKey   string
 
 	// LLM (for infer=true path)
 	LLMBaseURL string
@@ -42,20 +51,25 @@ type Config struct {
 // Load reads ENGRAM_* environment variables and returns a Config with defaults.
 func Load() Config {
 	return Config{
-		Addr:           getenv("ENGRAM_ADDR", ":8280"),
-		Mem0CompatAddr: getenv("ENGRAM_MEM0COMPAT_ADDR", ":8281"),
-		APIKey:         os.Getenv("ENGRAM_API_KEY"),
-		DBPath:         getenv("ENGRAM_DB_PATH", "engram.db"),
-		Collection:     getenv("ENGRAM_COLLECTION", "engram"),
-		EmbeddingDim:   getenvInt("ENGRAM_EMBEDDING_DIM", 1536),
-		EmbedBaseURL:   getenv("ENGRAM_EMBED_URL", ""),
-		EmbedModel:     getenv("ENGRAM_EMBED_MODEL", "text-embedding-3-small"),
-		EmbedAPIKey:    os.Getenv("ENGRAM_EMBED_KEY"),
-		LLMBaseURL:     getenv("ENGRAM_LLM_URL", ""),
-		LLMAPIKey:      os.Getenv("ENGRAM_LLM_KEY"),
-		LLMModel:       getenv("ENGRAM_LLM_MODEL", "gpt-4o-mini"),
-		Timeout:        getenvDuration("ENGRAM_TIMEOUT", 30*time.Second),
-		LogLevel:       getenv("ENGRAM_LOG_LEVEL", "info"),
+		Addr:               getenv("ENGRAM_ADDR", ":8280"),
+		Mem0CompatAddr:     getenv("ENGRAM_MEM0COMPAT_ADDR", ":8281"),
+		APIKey:             os.Getenv("ENGRAM_API_KEY"),
+		DBPath:             getenv("ENGRAM_DB_PATH", "engram.db"),
+		Collection:         getenv("ENGRAM_COLLECTION", "engram"),
+		QdrantURL:          getenv("ENGRAM_QDRANT_URL", ""),
+		QdrantAPIKey:       os.Getenv("ENGRAM_QDRANT_KEY"),
+		EmbeddingDim:       getenvInt("ENGRAM_EMBEDDING_DIM", 768),
+		EmbedBaseURL:       getenv("ENGRAM_EMBED_URL", ""),
+		EmbedModel:         getenv("ENGRAM_EMBED_MODEL", "nomic-embed-text"),
+		EmbedAPIKey:        os.Getenv("ENGRAM_EMBED_KEY"),
+		EmbedFallbackURL:   getenv("ENGRAM_EMBED_FALLBACK_URL", ""),
+		EmbedFallbackModel: getenv("ENGRAM_EMBED_FALLBACK_MODEL", "embo-01"),
+		EmbedFallbackKey:   os.Getenv("ENGRAM_EMBED_FALLBACK_KEY"),
+		LLMBaseURL:         getenv("ENGRAM_LLM_URL", ""),
+		LLMAPIKey:          os.Getenv("ENGRAM_LLM_KEY"),
+		LLMModel:           getenv("ENGRAM_LLM_MODEL", "gpt-4o-mini"),
+		Timeout:            getenvDuration("ENGRAM_TIMEOUT", 30*time.Second),
+		LogLevel:           getenv("ENGRAM_LOG_LEVEL", "info"),
 	}
 }
 
@@ -64,6 +78,12 @@ func (c Config) HasLLM() bool { return c.LLMBaseURL != "" }
 
 // HasEmbedder returns true when an embedder base URL is configured.
 func (c Config) HasEmbedder() bool { return c.EmbedBaseURL != "" }
+
+// HasQdrant returns true when a Qdrant URL is configured.
+func (c Config) HasQdrant() bool { return c.QdrantURL != "" }
+
+// HasEmbedFallback returns true when a fallback embedder is configured.
+func (c Config) HasEmbedFallback() bool { return c.EmbedFallbackURL != "" }
 
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

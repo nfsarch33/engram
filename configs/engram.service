@@ -1,0 +1,18 @@
+[Unit]
+Description=Engram Memory Engine
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/engram
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yaml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yaml down
+ExecReload=/usr/bin/docker compose -f docker-compose.prod.yaml restart
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
