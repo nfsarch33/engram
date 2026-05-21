@@ -11,3 +11,6 @@
 # IDE
 .idea/
 .vscode/
+
+# Sentrux structural baseline + cache (keep out of repo)
+/.sentrux/

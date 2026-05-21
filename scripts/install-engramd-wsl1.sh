@@ -58,6 +58,13 @@ ENGRAM_DB_PATH=/var/lib/engram/engram.db
 ENGRAM_COLLECTION=engram
 ENGRAM_EMBEDDING_DIM=768
 
+# Mem0 OSS wire-compatible HTTP shim (v7100). Loopback only; reached from
+# the macbook through `runx tunnel start engram-mem0compat`
+# (127.0.0.1:18289 -> wsl1:8281). Setting ENGRAM_API_KEY enables the
+# X-API-Key gate; an empty value disables the gate (probes still bypass).
+ENGRAM_MEM0COMPAT_ADDR=127.0.0.1:8281
+ENGRAM_API_KEY=
+
 # Local Ollama OpenAI-compatible embedder.
 ENGRAM_EMBED_URL=http://127.0.0.1:11434/v1
 ENGRAM_EMBED_MODEL=nomic-embed-text
@@ -66,6 +73,17 @@ ENGRAM_LOG_LEVEL=info
 EOF
   chown root:"${ENGRAM_GROUP}" "${ENGRAM_ETC}/engramd.env"
   chmod 0640 "${ENGRAM_ETC}/engramd.env"
+else
+  # Idempotent upgrade: append Mem0-compat env vars if they are missing
+  # from a pre-v7100 env file. Never overwrite operator-set values.
+  if ! grep -q '^ENGRAM_MEM0COMPAT_ADDR=' "${ENGRAM_ETC}/engramd.env"; then
+    {
+      echo ""
+      echo "# v7100: Mem0 OSS wire-compatible shim. Loopback only."
+      echo "ENGRAM_MEM0COMPAT_ADDR=127.0.0.1:8281"
+      echo "ENGRAM_API_KEY="
+    } >>"${ENGRAM_ETC}/engramd.env"
+  fi
 fi
 
 echo "[5/6] installing systemd unit"
@@ -82,7 +100,7 @@ User=${ENGRAM_USER}
 Group=${ENGRAM_GROUP}
 WorkingDirectory=${ENGRAM_HOME}
 EnvironmentFile=${ENGRAM_ETC}/engramd.env
-ExecStart=${ENGRAM_BIN}
+ExecStart=${ENGRAM_BIN} --mem0-compat
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=15s
@@ -117,8 +135,10 @@ systemctl --no-pager --full status engramd | head -25 || true
 
 echo
 echo "engramd installed and running."
-echo "  daemon : ${ENGRAM_BIN}"
-echo "  cli    : ${ENGRAM_CLI}"
-echo "  envfile: ${ENGRAM_ETC}/engramd.env"
-echo "  data   : ${ENGRAM_HOME}/engram.db"
-echo "  unit   : ${ENGRAM_UNIT}"
+echo "  daemon          : ${ENGRAM_BIN}"
+echo "  cli             : ${ENGRAM_CLI}"
+echo "  envfile         : ${ENGRAM_ETC}/engramd.env"
+echo "  data            : ${ENGRAM_HOME}/engram.db"
+echo "  unit            : ${ENGRAM_UNIT}"
+echo "  canonical port  : 8280  (loopback)"
+echo "  mem0-compat port: 8281  (loopback, --mem0-compat)"

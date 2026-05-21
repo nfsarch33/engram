@@ -1,13 +1,20 @@
 # Local development stack for Engram.
 #
 # Default: only engramd (in-memory vector store). Useful for unit-test-style
-# poking at the HTTP API without external dependencies.
+# poking at the HTTP API without external dependencies. Two ports are
+# exposed:
+#   - 8280: canonical Engram HTTP API
+#   - 8281: Mem0 OSS wire-compatible shim (point MEM0_BASE_URL here)
 #
 # Optional Qdrant profile: brings up a local Qdrant container so you can
 # exercise the qdrant adapter without writing to a real cluster.
 #
 #   docker compose up -d                 # engramd only
 #   docker compose --profile qdrant up -d  # engramd + qdrant
+#
+# To require an API key on the Mem0-compat shim:
+#   ENGRAM_API_KEY=<secret> docker compose up -d
+# Clients then send X-API-Key: <secret> on every protected route.
 #
 # For a real embedder, point ENGRAM_EMBED_URL at your local Ollama
 # (e.g. http://host.docker.internal:11434/v1) or any OpenAI-compatible
@@ -22,10 +29,14 @@ services:
     image: engramd:dev
     container_name: engramd
     restart: unless-stopped
+    command: ["--mem0-compat"]
     ports:
       - "8280:8280"
+      - "8281:8281"
     environment:
       ENGRAM_ADDR: ":8280"
+      ENGRAM_MEM0COMPAT_ADDR: ":8281"
+      ENGRAM_API_KEY: "${ENGRAM_API_KEY:-}"
       ENGRAM_DB_PATH: "/data/engram.db"
       ENGRAM_COLLECTION: "engram"
       ENGRAM_EMBEDDING_DIM: "${ENGRAM_EMBEDDING_DIM:-768}"

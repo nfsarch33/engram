@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {"role": "user", "content": "I prefer Go over Python for backend services"},
+    {"role": "assistant", "content": "Got it, Go for backend."}
+  ],
+  "user_id": "alice",
+  "agent_id": "cursor-coding",
+  "app_id": "cursor",
+  "metadata": {
+    "session": "2026-05-21-morning"
+  },
+  "infer": true
+}

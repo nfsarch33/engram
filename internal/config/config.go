@@ -12,6 +12,13 @@ type Config struct {
 	// HTTP server
 	Addr string
 
+	// Mem0 OSS-compatible HTTP shim (separate listener, separate port).
+	Mem0CompatAddr string
+
+	// API key gate; applied to both the canonical API and the shim. Empty
+	// disables the gate, matching the existing engramd convention.
+	APIKey string
+
 	// Storage
 	DBPath     string
 	Collection string
@@ -35,18 +42,20 @@ type Config struct {
 // Load reads ENGRAM_* environment variables and returns a Config with defaults.
 func Load() Config {
 	return Config{
-		Addr:         getenv("ENGRAM_ADDR", ":8280"),
-		DBPath:       getenv("ENGRAM_DB_PATH", "engram.db"),
-		Collection:   getenv("ENGRAM_COLLECTION", "engram"),
-		EmbeddingDim: getenvInt("ENGRAM_EMBEDDING_DIM", 1536),
-		EmbedBaseURL: getenv("ENGRAM_EMBED_URL", ""),
-		EmbedModel:   getenv("ENGRAM_EMBED_MODEL", "text-embedding-3-small"),
-		EmbedAPIKey:  os.Getenv("ENGRAM_EMBED_KEY"),
-		LLMBaseURL:   getenv("ENGRAM_LLM_URL", ""),
-		LLMAPIKey:    os.Getenv("ENGRAM_LLM_KEY"),
-		LLMModel:     getenv("ENGRAM_LLM_MODEL", "gpt-4o-mini"),
-		Timeout:      getenvDuration("ENGRAM_TIMEOUT", 30*time.Second),
-		LogLevel:     getenv("ENGRAM_LOG_LEVEL", "info"),
+		Addr:           getenv("ENGRAM_ADDR", ":8280"),
+		Mem0CompatAddr: getenv("ENGRAM_MEM0COMPAT_ADDR", ":8281"),
+		APIKey:         os.Getenv("ENGRAM_API_KEY"),
+		DBPath:         getenv("ENGRAM_DB_PATH", "engram.db"),
+		Collection:     getenv("ENGRAM_COLLECTION", "engram"),
+		EmbeddingDim:   getenvInt("ENGRAM_EMBEDDING_DIM", 1536),
+		EmbedBaseURL:   getenv("ENGRAM_EMBED_URL", ""),
+		EmbedModel:     getenv("ENGRAM_EMBED_MODEL", "text-embedding-3-small"),
+		EmbedAPIKey:    os.Getenv("ENGRAM_EMBED_KEY"),
+		LLMBaseURL:     getenv("ENGRAM_LLM_URL", ""),
+		LLMAPIKey:      os.Getenv("ENGRAM_LLM_KEY"),
+		LLMModel:       getenv("ENGRAM_LLM_MODEL", "gpt-4o-mini"),
+		Timeout:        getenvDuration("ENGRAM_TIMEOUT", 30*time.Second),
+		LogLevel:       getenv("ENGRAM_LOG_LEVEL", "info"),
 	}
 }
 

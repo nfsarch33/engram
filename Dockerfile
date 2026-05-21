@@ -50,10 +50,11 @@ COPY --from=builder --chown=nonroot:nonroot /out/engramd /app/engramd
 COPY --from=builder --chown=nonroot:nonroot /out/engramcli /app/engramcli
 
 ENV ENGRAM_ADDR=":8280" \
+    ENGRAM_MEM0COMPAT_ADDR=":8281" \
     ENGRAM_DB_PATH="/data/engram.db" \
     ENGRAM_LOG_LEVEL="info"
 
-EXPOSE 8280
+EXPOSE 8280 8281
 
 # Daemon respects SIGTERM/SIGINT for graceful shutdown.
 ENTRYPOINT ["/app/engramd"]

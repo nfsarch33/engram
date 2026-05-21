@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +12,10 @@ import (
 	llmopenai "github.com/nfsarch33/engram/internal/adapters/llm/openai"
 	"github.com/nfsarch33/engram/internal/config"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 func TestBuildAdapters_NoEmbedderURL_NoFlag(t *testing.T) {
 	t.Parallel()
@@ -84,5 +91,58 @@ func TestNoopEmbedder_EmbedBatch_EmptyInput(t *testing.T) {
 	_, err := e.EmbedBatch(context.Background(), nil)
 	if err == nil {
 		t.Error("noopEmbedder.EmbedBatch should return error even for empty input")
+	}
+}
+
+func TestRunWith_Mem0CompatRejectsAddrCollision(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		Addr:           ":8280",
+		Mem0CompatAddr: ":8280",
+		EmbedBaseURL:   "http://localhost:11434/v1",
+		EmbeddingDim:   1536,
+		Timeout:        time.Second,
+	}
+
+	err := runWith(context.Background(), discardLogger(), cfg, runOpts{mem0Compat: true})
+	if err == nil {
+		t.Fatal("expected addr-collision error, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "must differ") {
+		t.Errorf("error: want 'must differ' message, got %q", got)
+	}
+}
+
+func TestRunWith_Mem0CompatRequiresAddr(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		Addr:           ":8280",
+		Mem0CompatAddr: "",
+		EmbedBaseURL:   "http://localhost:11434/v1",
+		EmbeddingDim:   1536,
+		Timeout:        time.Second,
+	}
+
+	err := runWith(context.Background(), discardLogger(), cfg, runOpts{mem0Compat: true})
+	if err == nil {
+		t.Fatal("expected missing-addr error, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "ENGRAM_MEM0COMPAT_ADDR") {
+		t.Errorf("error: want ENGRAM_MEM0COMPAT_ADDR hint, got %q", got)
+	}
+}
+
+func TestRunWith_NoHTTPRequiresMCPStdio(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{}
+	err := runWith(context.Background(), discardLogger(), cfg, runOpts{noHTTP: true})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "--mcp-stdio") {
+		t.Errorf("error: want --mcp-stdio hint, got %q", got)
 	}
 }

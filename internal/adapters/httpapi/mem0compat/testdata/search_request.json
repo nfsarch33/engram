@@ -1,0 +1,8 @@
+{
+  "query": "language preferences for backend code",
+  "limit": 5,
+  "filters": {
+    "user_id": "alice",
+    "app_id": "cursor"
+  }
+}

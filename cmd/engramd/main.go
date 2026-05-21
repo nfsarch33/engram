@@ -17,6 +17,7 @@ import (
 	embedopenai "github.com/nfsarch33/engram/internal/adapters/embeddings/openai"
 	"github.com/nfsarch33/engram/internal/adapters/history/sqlite"
 	"github.com/nfsarch33/engram/internal/adapters/httpapi"
+	"github.com/nfsarch33/engram/internal/adapters/httpapi/mem0compat"
 	llmopenai "github.com/nfsarch33/engram/internal/adapters/llm/openai"
 	mcpadapter "github.com/nfsarch33/engram/internal/adapters/mcp"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/inmem"
@@ -29,9 +30,10 @@ import (
 var version = "dev"
 
 type runOpts struct {
-	noEmbed  bool
-	mcpStdio bool
-	noHTTP   bool
+	noEmbed    bool
+	mcpStdio   bool
+	noHTTP     bool
+	mem0Compat bool
 }
 
 func main() {
@@ -39,6 +41,7 @@ func main() {
 	flag.BoolVar(&opts.noEmbed, "no-embed", false, "start without embedder (dev/test mode; search unavailable)")
 	flag.BoolVar(&opts.mcpStdio, "mcp-stdio", false, "serve MCP via stdio JSON-RPC (in addition to HTTP unless --no-http)")
 	flag.BoolVar(&opts.noHTTP, "no-http", false, "disable HTTP server (typically combined with --mcp-stdio)")
+	flag.BoolVar(&opts.mem0Compat, "mem0-compat", false, "additionally serve a Mem0 OSS-compatible HTTP shim on ENGRAM_MEM0COMPAT_ADDR (default :8281)")
 	showVer := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -59,11 +62,24 @@ func main() {
 }
 
 func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
+	return runWith(ctx, logger, config.Load(), opts)
+}
+
+// runWith is the testable entry point that takes an explicit config so unit
+// tests can exercise validation branches without touching env vars.
+func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts runOpts) error {
 	if opts.noHTTP && !opts.mcpStdio {
 		return fmt.Errorf("--no-http requires --mcp-stdio (otherwise the daemon would have nothing to serve)")
 	}
 
-	cfg := config.Load()
+	if opts.mem0Compat {
+		if cfg.Mem0CompatAddr == "" {
+			return fmt.Errorf("--mem0-compat requires ENGRAM_MEM0COMPAT_ADDR (default :8281)")
+		}
+		if cfg.Mem0CompatAddr == cfg.Addr && !opts.noHTTP {
+			return fmt.Errorf("--mem0-compat addr (%s) must differ from canonical HTTP addr (%s)", cfg.Mem0CompatAddr, cfg.Addr)
+		}
+	}
 
 	logger.Info("engramd starting",
 		"version", version,
@@ -74,6 +90,8 @@ func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
 		"no_embed", opts.noEmbed,
 		"mcp_stdio", opts.mcpStdio,
 		"no_http", opts.noHTTP,
+		"mem0_compat", opts.mem0Compat,
+		"mem0_compat_addr", cfg.Mem0CompatAddr,
 	)
 
 	hist, err := sqlite.NewStore(cfg.DBPath)
@@ -100,8 +118,9 @@ func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
 		return fmt.Errorf("service: %w", err)
 	}
 
-	serverErr := make(chan error, 2)
+	serverErr := make(chan error, 3)
 	var srv *http.Server
+	var mem0Srv *http.Server
 
 	if !opts.noHTTP {
 		handler := httpapi.NewHandler(svc)
@@ -114,6 +133,22 @@ func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
 			logger.Info("HTTP server listening", "addr", cfg.Addr)
 			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				serverErr <- fmt.Errorf("http: %w", err)
+				return
+			}
+		}()
+	}
+
+	if opts.mem0Compat {
+		mem0Handler := mem0compat.NewHandler(svc, cfg.APIKey)
+		mem0Srv = &http.Server{
+			Addr:        cfg.Mem0CompatAddr,
+			Handler:     mem0Handler,
+			BaseContext: func(net.Listener) context.Context { return ctx },
+		}
+		go func() {
+			logger.Info("Mem0 OSS-compat shim listening", "addr", cfg.Mem0CompatAddr)
+			if err := mem0Srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- fmt.Errorf("mem0-compat: %w", err)
 				return
 			}
 		}()
@@ -142,11 +177,16 @@ func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
 	}
 
 	logger.Info("engramd shutting down")
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutCancel()
 	if srv != nil {
-		shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer shutCancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
 			return fmt.Errorf("graceful shutdown: %w", err)
+		}
+	}
+	if mem0Srv != nil {
+		if err := mem0Srv.Shutdown(shutCtx); err != nil {
+			return fmt.Errorf("graceful mem0-compat shutdown: %w", err)
 		}
 	}
 	return nil
