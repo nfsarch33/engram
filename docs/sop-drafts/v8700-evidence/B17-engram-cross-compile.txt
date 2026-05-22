@@ -1,0 +1,4 @@
+6ff2858e4e03c0fb1c980fd980f4a626a90bd5b049beb2a2ed3d68b930eb4c83  engram-darwin-arm64/engramcli
+44a6186691d8452c493e857bc8fb31a0a50c94d63ce0906d5d247702ccb37218  engram-darwin-arm64/engramd
+0b13f4519f07424440e61caea2da9c664f7c4b6b3d2f21f079b7e46ff82b0297  engram-windows-amd64/engramcli.exe
+c6c80fa4503c591d9c5ed3f7262ab85eae2d342836a958f3835a9a46f4edef63  engram-windows-amd64/engramd.exe
