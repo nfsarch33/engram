@@ -37,6 +37,7 @@ Commands:
   doctor    Run diagnostic checks against the daemon
   migrate   Import memories from another system (e.g. Mem0 OSS)
   shadow    Dual-run comparison: query both Engram and Mem0, log discrepancies
+  shadow-write  Dual-write fanout: canonical Mem0 + secondary Engram, NDJSON audit
 
 Use engramcli <command> --help for flag details.
 `
@@ -66,6 +67,8 @@ func Run(deps Deps, args []string) int {
 		return runMigrate(deps, rest)
 	case "shadow":
 		return runShadow(deps, rest)
+	case "shadow-write":
+		return runShadowWrite(deps, rest)
 	default:
 		fmt.Fprintf(deps.Stderr, "engramcli: unknown command %q\n\n%s", cmd, usageText)
 		return 1
