@@ -9,8 +9,8 @@ import (
 
 // SearchResult combines a vector result with the full memory record.
 type SearchResult struct {
-	Record engram.MemoryRecord
-	Score  float32
+	Record engram.MemoryRecord `json:"record"`
+	Score  float32             `json:"score"`
 }
 
 // Search performs semantic search over stored memories.

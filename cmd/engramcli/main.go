@@ -203,7 +203,11 @@ func runSearch(deps Deps, args []string) int {
 		return 0
 	}
 	for i, rm := range results {
-		fmt.Fprintf(deps.Stdout, "[%d] id=%v score=%v text=%v\n", i+1, rm["id"], rm["score"], rm["text"])
+		rec, _ := rm["record"].(map[string]any)
+		if rec == nil {
+			rec = rm
+		}
+		fmt.Fprintf(deps.Stdout, "[%d] id=%v score=%v text=%v\n", i+1, rec["id"], rm["score"], rec["text"])
 	}
 	return 0
 }

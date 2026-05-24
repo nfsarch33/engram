@@ -7,16 +7,16 @@ type MemoryID string
 
 // MemoryRecord holds a single consolidated memory entry plus its scoping metadata.
 type MemoryRecord struct {
-	ID          MemoryID
-	Text        string
-	Metadata    map[string]any
-	UserID      string
-	AgentID     string
-	RunID       string
-	AppID       string
-	WorkspaceID string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          MemoryID       `json:"id"`
+	Text        string         `json:"text"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	UserID      string         `json:"user_id,omitempty"`
+	AgentID     string         `json:"agent_id,omitempty"`
+	RunID       string         `json:"run_id,omitempty"`
+	AppID       string         `json:"app_id,omitempty"`
+	WorkspaceID string         `json:"workspace_id,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 // Fact is an atomic piece of knowledge extracted from a conversation.
