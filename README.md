@@ -2,7 +2,7 @@
 
 Personal Go memory engine for agentic systems. Hexagonal architecture with
 zero CGO (`modernc.org/sqlite`), ULID v2 identifiers, and a thin
-HTTP + MCP surface so any agent — Claude Code, Cursor, IronClaw, custom
+HTTP + MCP surface so any agent — Claude Code, Cursor, Helixon, custom
 Go services — can persist and recall memory through the same canonical
 endpoints.
 
