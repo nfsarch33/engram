@@ -36,6 +36,7 @@ func TestRunShadowWrite_BothSucceed_LogsDualID(t *testing.T) {
 		"--engram-addr", engramSrv.URL,
 		"--mem0-addr", mem0Srv.URL,
 		"--app-id", "test-app",
+		"--allow-app", "test-app",
 		"--user-id", "test-user",
 		"--message", "user:test payload",
 		"--log", tmpLog,
@@ -89,6 +90,7 @@ func TestRunShadowWrite_EngramFails_RecordsDivergence(t *testing.T) {
 		"--engram-addr", "http://127.0.0.1:1",
 		"--mem0-addr", mem0Srv.URL,
 		"--app-id", "test-app",
+		"--allow-app", "test-app",
 		"--message", "user:engram-down",
 		"--log", tmpLog,
 	})
