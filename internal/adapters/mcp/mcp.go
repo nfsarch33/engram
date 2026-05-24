@@ -141,7 +141,11 @@ func (a *Adapter) handleAdd(ctx context.Context, p map[string]any) (any, error) 
 	if infer, ok := p["infer"].(bool); ok {
 		req.Infer = infer
 	}
-	return a.svc.Add(ctx, req)
+	recs, err := a.svc.Add(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"memories": recs, "count": len(recs)}, nil
 }
 
 func (a *Adapter) handleSearch(ctx context.Context, p map[string]any) (any, error) {
@@ -158,7 +162,11 @@ func (a *Adapter) handleSearch(ctx context.Context, p map[string]any) (any, erro
 		WorkspaceID: strVal(p, "workspace_id"),
 		TopK:        topK,
 	}
-	return a.svc.Search(ctx, req)
+	results, err := a.svc.Search(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"results": results, "count": len(results)}, nil
 }
 
 func (a *Adapter) handleGet(ctx context.Context, p map[string]any) (any, error) {
@@ -180,17 +188,25 @@ func (a *Adapter) handleDelete(ctx context.Context, p map[string]any) (any, erro
 }
 
 func (a *Adapter) handleHistory(ctx context.Context, p map[string]any) (any, error) {
-	return a.svc.History(ctx, engram.MemoryID(strVal(p, "id")))
+	events, err := a.svc.History(ctx, engram.MemoryID(strVal(p, "id")))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"events": events, "count": len(events)}, nil
 }
 
 func (a *Adapter) handleGetAll(ctx context.Context, p map[string]any) (any, error) {
-	return a.svc.GetAll(ctx, engram.HistoryFilter{
+	recs, err := a.svc.GetAll(ctx, engram.HistoryFilter{
 		UserID:      strVal(p, "user_id"),
 		AgentID:     strVal(p, "agent_id"),
 		RunID:       strVal(p, "run_id"),
 		AppID:       strVal(p, "app_id"),
 		WorkspaceID: strVal(p, "workspace_id"),
 	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"memories": recs, "count": len(recs)}, nil
 }
 
 func (a *Adapter) handleDoctor(ctx context.Context) (any, error) {
