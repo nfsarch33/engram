@@ -119,14 +119,13 @@ func runAdd(deps Deps, args []string) int {
 		return 1
 	}
 
-	role, content, ok := strings.Cut(*message, ":")
+	_, content, ok := strings.Cut(*message, ":")
 	if !ok {
-		fmt.Fprintln(deps.Stderr, "engramcli add: --message must be role:content")
-		return 1
+		content = *message
 	}
 
 	body := map[string]any{
-		"messages": []map[string]string{{"role": role, "content": content}},
+		"messages": []string{content},
 	}
 	if *userID != "" {
 		body["user_id"] = *userID
