@@ -175,9 +175,13 @@ func TestMem0GetAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mem0_get_all: %v", err)
 	}
-	recs, ok := result.([]engram.MemoryRecord)
+	resMap, ok := result.(map[string]any)
 	if !ok {
-		t.Fatalf("mem0_get_all: expected []MemoryRecord, got %T", result)
+		t.Fatalf("mem0_get_all: expected map result, got %T", result)
+	}
+	recs, ok := resMap["memories"].([]engram.MemoryRecord)
+	if !ok {
+		t.Fatalf("mem0_get_all: memories field expected []MemoryRecord, got %T", resMap["memories"])
 	}
 	if len(recs) < 2 {
 		t.Errorf("mem0_get_all: want >=2 records, got %d", len(recs))
@@ -194,7 +198,11 @@ func TestMem0Delete_Alias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mem0_add: %v", err)
 	}
-	recs := addResult.([]engram.MemoryRecord)
+	addMap, ok := addResult.(map[string]any)
+	if !ok {
+		t.Fatalf("mem0_add: expected map result, got %T", addResult)
+	}
+	recs := addMap["memories"].([]engram.MemoryRecord)
 	id := string(recs[0].ID)
 
 	result, err := a.HandleTool(context.Background(), "mem0_delete", map[string]any{
