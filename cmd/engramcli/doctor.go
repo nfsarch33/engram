@@ -99,7 +99,7 @@ func checkMemories(deps Deps, addr string) bool {
 	var result []map[string]any
 	json.NewDecoder(resp.Body).Decode(&result) //nolint:errcheck
 	if len(result) > 0 {
-		if id, ok := result[0]["ID"].(string); ok && id != "" {
+		if id, ok := result[0]["id"].(string); ok && id != "" {
 			delReq, _ := http.NewRequest(http.MethodDelete, addr+"/memories/"+id, nil) //nolint:noctx
 			delResp, delErr := client.Do(delReq)
 			if delErr == nil {

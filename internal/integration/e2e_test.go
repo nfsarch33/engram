@@ -135,9 +135,9 @@ func addOne(t *testing.T, srv *httptest.Server, userID, msg string) string {
 	if len(recs) == 0 {
 		t.Fatal("add: expected at least one record in response")
 	}
-	id, _ := recs[0]["ID"].(string)
+	id, _ := recs[0]["id"].(string)
 	if id == "" {
-		t.Fatalf("add: expected ID in first record, got %v", recs[0])
+		t.Fatalf("add: expected id in first record, got %v", recs[0])
 	}
 	return id
 }
@@ -176,8 +176,8 @@ func TestE2E_AddSearchRecall(t *testing.T) {
 	}
 	var rec map[string]any
 	decodeJSON(t, getResp, &rec)
-	if rec["ID"] != id {
-		t.Errorf("get: want ID=%s, got %v", id, rec["ID"])
+	if rec["id"] != id {
+		t.Errorf("get: want id=%s, got %v", id, rec["id"])
 	}
 }
 
@@ -284,7 +284,7 @@ func TestE2E_AddMultiple_ConcurrentWrites(t *testing.T) {
 			json.NewDecoder(resp.Body).Decode(&recs)
 			resp.Body.Close()
 			if len(recs) > 0 {
-				if id, ok := recs[0]["ID"].(string); ok {
+				if id, ok := recs[0]["id"].(string); ok {
 					ids <- id
 				}
 			}
