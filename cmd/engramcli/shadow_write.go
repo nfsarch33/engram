@@ -186,5 +186,5 @@ func appendNDJSON(path string, rec ShadowWriteRecord) {
 
 func defaultShadowWriteLog() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "logs", "runx", "engram-shadow.ndjson")
+	return filepath.Join(home, ".engram", "shadow.ndjson")
 }

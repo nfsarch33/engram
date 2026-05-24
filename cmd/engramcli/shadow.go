@@ -188,5 +188,5 @@ func defaultMem0Addr() string {
 
 func defaultShadowLog() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "logs", "runx", "engram-shadow.ndjson")
+	return filepath.Join(home, ".engram", "shadow.ndjson")
 }
