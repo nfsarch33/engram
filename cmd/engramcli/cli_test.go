@@ -14,19 +14,19 @@ func mockServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 
-	// POST /memories -> 201 with ID
+	// POST /memories -> 201 with array of MemoryRecord
 	mux.HandleFunc("POST /memories", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": "01JTEST00000000000000AAAAA"})
+		json.NewEncoder(w).Encode([]map[string]any{{"id": "01JTEST00000000000000AAAAA", "text": "hello world"}})
 	})
 
-	// POST /search -> 200 with results
+	// POST /search -> 200 with array of SearchResult{record, score}
 	mux.HandleFunc("POST /search", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"results": []map[string]any{
-			{"id": "01JTEST00000000000000AAAAA", "score": 0.95, "messages": []map[string]any{{"role": "user", "content": "hello"}}},
-		}})
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"record": map[string]any{"id": "01JTEST00000000000000AAAAA", "text": "hello"}, "score": 0.95},
+		})
 	})
 
 	// GET /memories/{id}
