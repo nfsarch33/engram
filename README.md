@@ -14,8 +14,7 @@ endpoints.
 
 ## What is Engram
 
-Engram is a personal-fleet replacement for self-hosted memory services. It
-provides:
+Engram is a replacement for self-hosted memory services. It provides:
 
 - A **service core** (`internal/app/engramsvc`) modelled on add / search /
   get / update / delete / history, plus an MCP-shaped tool surface.
@@ -30,9 +29,9 @@ provides:
   agent integration (`internal/adapters/{httpapi,mcp}`).
 - A reference **CLI** at `cmd/engramcli` for human-driven smoke tests.
 
-Engram intentionally avoids any reference to other memory systems in code:
-no symbol or string contains the word `mem0`. The repo is a drop-in
-foundation for personal agents only.
+The MCP adapter includes optional backward-compatible aliases for agents
+migrating from other memory services. The canonical tools use the
+`engram_` prefix.
 
 ## Quickstart (local, no embedder)
 
@@ -44,10 +43,10 @@ make build
 # search needs an embedder; with --no-embed it errors loudly
 ```
 
-## Quickstart (live, Ollama on wsl1)
+## Quickstart (live, Ollama embedder)
 
 ```bash
-export ENGRAM_EMBED_URL="http://wsl1:11434/v1"
+export ENGRAM_EMBED_URL="http://<your-ollama-host>:11434/v1"
 export ENGRAM_EMBED_MODEL="nomic-embed-text"
 export ENGRAM_EMBEDDING_DIM=768
 export ENGRAM_DB_PATH="$HOME/.engram/engram.db"
@@ -102,7 +101,7 @@ agent runtime:
 ./bin/engramd --mcp-stdio --no-http
 ```
 
-Six tools are exposed:
+Eleven tools are exposed (6 canonical + 5 backward-compatible aliases):
 
 - `engram_add(messages, user_id, agent_id, run_id, app_id, workspace_id, infer)`
 - `engram_search(query, user_id, ..., top_k)`
@@ -110,6 +109,14 @@ Six tools are exposed:
 - `engram_update(id, text)`
 - `engram_delete(id)`
 - `engram_history(id)`
+
+Backward-compatible aliases (for agents migrating from other memory services):
+
+- `mem0_add` -> `engram_add`
+- `mem0_search` -> `engram_search`
+- `mem0_get_all` -> list all (filter by user/agent/app/run/workspace)
+- `mem0_delete` -> `engram_delete`
+- `mem0_doctor` -> health check
 
 To run HTTP and MCP at the same time, omit `--no-http`:
 
@@ -136,7 +143,7 @@ CLI.
 make build           # ./bin/engramd, ./bin/engramcli
 make test            # go test ./...
 make test-race       # go test -race ./...
-make build-linux     # GOOS=linux GOARCH=amd64 cross-compile (for wsl1 deploy)
+make build-linux     # GOOS=linux GOARCH=amd64 cross-compile
 make docker-build    # docker build -t engramd:<version> .
 make check           # fmt + vet + test-race (CI gate)
 ```
@@ -145,7 +152,7 @@ Live integration tests against an Ollama embedder are gated behind the
 `integration` build tag and skip unless `ENGRAM_LIVE_OLLAMA_URL` is set:
 
 ```bash
-ENGRAM_LIVE_OLLAMA_URL=http://wsl1:11434 \
+ENGRAM_LIVE_OLLAMA_URL=http://<your-ollama-host>:11434 \
   go test -tags integration -race -count=1 ./internal/integration/...
 ```
 
@@ -167,18 +174,18 @@ docker compose up -d            # engramd only
 docker compose --profile qdrant up -d   # engramd + qdrant
 ```
 
-## wsl1 deployment
+## Remote deployment
 
-Daemon installed as a systemd unit. See `scripts/install-engramd-wsl1.sh`
-for the canonical install procedure (cross-compile, scp, register, start).
-The runbook is documented at
-`~/Code/global-kb/sop/engram-memory-engine.md`.
+Daemon can be installed as a systemd unit on any Linux host. See
+`scripts/install-engramd.sh` for the canonical install procedure
+(cross-compile, copy binary, register systemd unit, start). The script
+is idempotent and configurable via environment variables.
 
 ## Constraints (do not regress)
 
-- Zero `mem0` terms in any `.go` file.
-- Three direct dependencies maximum. Any new direct dep needs an ADR under
-  `~/Code/global-kb/adrs/`.
+- Backward-compatible aliases use `mem0_` prefix only in the MCP adapter
+  surface; core domain code avoids the term.
+- Three direct dependencies maximum. Any new direct dep needs an ADR.
 - `crypto/rand` for ULID entropy, never `math/rand`.
 - `SetMaxOpenConns(1)` on `:memory:` SQLite stores.
 - All public API takes `context.Context` as the first argument.

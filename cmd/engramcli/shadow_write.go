@@ -16,9 +16,9 @@ import (
 	"time"
 )
 
-// runShadowWrite implements the v7800-B1 dual-write reconciler described in
-// `~/Code/global-kb/sop/engram-wsl1-deployment.md` §3.2. Mem0 OSS is the
-// canonical (primary) path; Engram is the secondary mirror. The harness:
+// runShadowWrite implements the dual-write reconciler. The legacy memory
+// service is the canonical (primary) path; Engram is the secondary mirror.
+// The harness:
 //
 //  1. Sends the same payload to both endpoints in parallel.
 //  2. Records {a, b, ts, app_id, payload_hash} to NDJSON for daily audit.
@@ -32,8 +32,8 @@ func runShadowWrite(deps Deps, args []string) int {
 	fs := flag.NewFlagSet("shadow-write", flag.ContinueOnError)
 	engramAddr := fs.String("engram-addr", defaultAddr(), "Engram daemon address (secondary)")
 	mem0Addr := fs.String("mem0-addr", defaultMem0Addr(), "Mem0 OSS address (canonical primary)")
-	appID := fs.String("app-id", "cursor-global-kb", "Calling app_id (Mem0 metadata)")
-	allowApp := fs.String("allow-app", "cursor-global-kb", "Comma-separated app_ids to dual-write; other values write Mem0 only")
+	appID := fs.String("app-id", "default", "Calling app_id (Mem0 metadata)")
+	allowApp := fs.String("allow-app", "default", "Comma-separated app_ids to dual-write; other values write Mem0 only")
 	userID := fs.String("user-id", "", "Optional user_id metadata")
 	agentID := fs.String("agent-id", "", "Optional agent_id metadata")
 	message := fs.String("message", "", "Message in role:content form (required)")

@@ -13,7 +13,7 @@ import (
 func runMigrate(deps Deps, args []string) int {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fromMem0 := fs.Bool("from-mem0", false, "Import memories from a Mem0 OSS instance")
-	endpoint := fs.String("endpoint", "", "Mem0 OSS HTTP endpoint (e.g. http://127.0.0.1:18888)")
+	endpoint := fs.String("endpoint", "", "Mem0 OSS HTTP endpoint (e.g. http://<host>:<port>)")
 	addr := fs.String("addr", defaultAddr(), "Engram daemon address to import into")
 	dryRun := fs.Bool("dry-run", false, "Print what would be imported without writing")
 	apiKey := fs.String("api-key", "", "Mem0 API key (if required)")

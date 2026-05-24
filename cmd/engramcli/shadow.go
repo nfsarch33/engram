@@ -20,7 +20,7 @@ func runShadow(deps Deps, args []string) int {
 	mem0Addr := fs.String("mem0-addr", defaultMem0Addr(), "Mem0 OSS HTTP address")
 	query := fs.String("query", "", "Search query for comparison")
 	topK := fs.Int("top-k", 5, "Max results per system")
-	userID := fs.String("user-id", "nfsarch33", "User ID for scoped queries")
+	userID := fs.String("user-id", "", "User ID for scoped queries")
 	logFile := fs.String("log", defaultShadowLog(), "NDJSON log path for discrepancies")
 	fs.SetOutput(deps.Stderr)
 	if err := fs.Parse(args); err != nil {
@@ -183,7 +183,7 @@ func defaultMem0Addr() string {
 	if v := os.Getenv("MEM0_ADDR"); v != "" {
 		return v
 	}
-	return "http://127.0.0.1:18888"
+	return "http://127.0.0.1:8888"
 }
 
 func defaultShadowLog() string {

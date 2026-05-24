@@ -1,6 +1,6 @@
 # mem0-mcp-go Reuse Audit for Engram
 
-Source: `~/Code/personal/mem0-mcp-go`
+Source: the companion `mem0-mcp-go` project (see `github.com/nfsarch33/mem0-mcp-go`)
 
 ## Patterns Evaluated
 

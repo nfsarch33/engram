@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# install-engramd-wsl1.sh -- canonical installation procedure for engramd on
-# the WSL1 fleet node.
+# install-engramd.sh -- canonical installation procedure for engramd on a
+# Linux host (bare-metal or WSL).
 #
-# Run from MacBook:
+# Usage (from the build machine):
 #
 #   make build-linux
-#   runx ssh copy --target wsl1-travel --src ./bin/engramd-linux-amd64 --dst /tmp/engramd
-#   runx ssh copy --target wsl1-travel --src ./bin/engramcli-linux-amd64 --dst /tmp/engramcli
-#   runx ssh copy --target wsl1-travel --src ./scripts/install-engramd-wsl1.sh --dst /tmp/install-engramd-wsl1.sh
-#   runx ssh exec   --target wsl1-travel --raw 'sudo bash /tmp/install-engramd-wsl1.sh'
+#   scp ./bin/engramd-linux-amd64 <target-host>:/tmp/engramd
+#   scp ./bin/engramcli-linux-amd64 <target-host>:/tmp/engramcli
+#   scp ./scripts/install-engramd.sh <target-host>:/tmp/install-engramd.sh
+#   ssh <target-host> 'sudo bash /tmp/install-engramd.sh'
 #
 # The script is idempotent: re-running upgrades the binary and restarts the
 # unit without touching the SQLite DB or env file (unless they are missing).
@@ -52,16 +52,15 @@ echo "[4/6] writing default env file (only if missing)"
 if [[ ! -f "${ENGRAM_ETC}/engramd.env" ]]; then
   cat >"${ENGRAM_ETC}/engramd.env" <<'EOF'
 # Engram daemon environment. All values are read by engramd at start.
-# Bind to loopback only -- the macbook reaches us through a runx tunnel.
+# Bind to loopback only -- remote access is through an SSH tunnel or proxy.
 ENGRAM_ADDR=127.0.0.1:8280
 ENGRAM_DB_PATH=/var/lib/engram/engram.db
 ENGRAM_COLLECTION=engram
 ENGRAM_EMBEDDING_DIM=768
 
-# Mem0 OSS wire-compatible HTTP shim (v7100). Loopback only; reached from
-# the macbook through `runx tunnel start engram-mem0compat`
-# (127.0.0.1:18289 -> wsl1:8281). Setting ENGRAM_API_KEY enables the
-# X-API-Key gate; an empty value disables the gate (probes still bypass).
+# Mem0 OSS wire-compatible HTTP shim. Loopback only; reach from a remote
+# machine through an SSH tunnel or reverse proxy. Setting ENGRAM_API_KEY
+# enables the X-API-Key gate; an empty value disables the gate.
 ENGRAM_MEM0COMPAT_ADDR=127.0.0.1:8281
 ENGRAM_API_KEY=
 

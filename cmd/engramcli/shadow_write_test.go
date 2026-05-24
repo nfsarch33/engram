@@ -35,8 +35,8 @@ func TestRunShadowWrite_BothSucceed_LogsDualID(t *testing.T) {
 	code := runShadowWrite(deps, []string{
 		"--engram-addr", engramSrv.URL,
 		"--mem0-addr", mem0Srv.URL,
-		"--app-id", "cursor-global-kb",
-		"--user-id", "nfsarch33",
+		"--app-id", "test-app",
+		"--user-id", "test-user",
 		"--message", "user:test payload",
 		"--log", tmpLog,
 	})
@@ -58,7 +58,7 @@ func TestRunShadowWrite_BothSucceed_LogsDualID(t *testing.T) {
 	if rec.B != "engram-id-B" {
 		t.Errorf("b = %q, want engram-id-B", rec.B)
 	}
-	if rec.AppID != "cursor-global-kb" {
+	if rec.AppID != "test-app" {
 		t.Errorf("app_id = %q", rec.AppID)
 	}
 	if rec.PayloadHash == "" || len(rec.PayloadHash) != 64 {
@@ -88,7 +88,7 @@ func TestRunShadowWrite_EngramFails_RecordsDivergence(t *testing.T) {
 	code := runShadowWrite(deps, []string{
 		"--engram-addr", "http://127.0.0.1:1",
 		"--mem0-addr", mem0Srv.URL,
-		"--app-id", "cursor-global-kb",
+		"--app-id", "test-app",
 		"--message", "user:engram-down",
 		"--log", tmpLog,
 	})
@@ -133,7 +133,7 @@ func TestRunShadowWrite_Mem0Fails_Exit1(t *testing.T) {
 	code := runShadowWrite(deps, []string{
 		"--engram-addr", engramSrv.URL,
 		"--mem0-addr", "http://127.0.0.1:1",
-		"--app-id", "cursor-global-kb",
+		"--app-id", "test-app",
 		"--message", "user:mem0-down",
 		"--log", tmpLog,
 	})
@@ -166,7 +166,7 @@ func TestPayloadHash_Deterministic(t *testing.T) {
 
 func TestRunShadowWrite_RestrictsToConfiguredAppID(t *testing.T) {
 	t.Parallel()
-	// Per SOP §3.1: only app_id=cursor-global-kb is dual-written during shadow.
+	// Per SOP §3.1: only app_id=test-app is dual-written during shadow.
 	// Other app IDs must skip the secondary write entirely.
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -189,7 +189,7 @@ func TestRunShadowWrite_RestrictsToConfiguredAppID(t *testing.T) {
 		"--engram-addr", engramSrv.URL,
 		"--mem0-addr", mem0Srv.URL,
 		"--app-id", "cursor-coordination",
-		"--allow-app", "cursor-global-kb",
+		"--allow-app", "test-app",
 		"--message", "user:coord-only",
 		"--log", tmpLog,
 	})

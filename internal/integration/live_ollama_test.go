@@ -6,7 +6,7 @@
 //
 // To run:
 //
-//	ENGRAM_LIVE_OLLAMA_URL=http://wsl1:11434 \
+//	ENGRAM_LIVE_OLLAMA_URL=http://<your-ollama-host>:11434 \
 //	  go test -tags integration -race -count=1 \
 //	    ./internal/integration/...
 //

@@ -1,4 +1,4 @@
-# Production deployment for Engram on wsl1.
+# Production deployment for Engram.
 # Start with: docker compose -f docker-compose.prod.yaml up -d
 #
 # Prerequisites:
