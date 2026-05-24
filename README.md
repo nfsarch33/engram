@@ -74,6 +74,13 @@ All configuration is via `ENGRAM_*` environment variables.
 | `ENGRAM_LLM_MODEL` | `gpt-4o-mini` | LLM model name. |
 | `ENGRAM_TIMEOUT` | `30s` | Per-request timeout. |
 | `ENGRAM_LOG_LEVEL` | `info` | slog level. |
+| `ENGRAM_MEM0COMPAT_ADDR` | `:8281` | Mem0-compat HTTP shim listen address (requires `--mem0-compat`). |
+| `ENGRAM_API_KEY` | (empty) | API key gate for mem0-compat shim (`X-API-Key` header). |
+| `ENGRAM_QDRANT_URL` | (empty) | Qdrant HTTP URL. When set, vectors persist in Qdrant instead of in-memory. |
+| `ENGRAM_QDRANT_KEY` | (empty) | Qdrant API key. |
+| `ENGRAM_EMBED_FALLBACK_URL` | (empty) | Fallback embedder URL. Creates a chain: primary then fallback. |
+| `ENGRAM_EMBED_FALLBACK_MODEL` | `embo-01` | Fallback embedder model. |
+| `ENGRAM_EMBED_FALLBACK_KEY` | (empty) | Fallback embedder API key. |
 
 ## HTTP API
 
@@ -91,6 +98,20 @@ Listening on `ENGRAM_ADDR` (default `:8280`):
 
 Errors map to: 400 (`ErrEmptyText`, `ErrInvalidTopK`), 404 (`ErrNotFound`),
 500 (anything else).
+
+## Mem0-compatible HTTP shim
+
+Run with `--mem0-compat` to serve a second HTTP listener on
+`ENGRAM_MEM0COMPAT_ADDR` (default `:8281`) that accepts the same request
+shapes as Mem0 OSS. Existing agents wired to Mem0 can switch to Engram with
+zero config changes beyond the endpoint URL.
+
+```bash
+./bin/engramd --mem0-compat
+# Canonical API on :8280, Mem0-compat shim on :8281
+```
+
+Auth uses `X-API-Key` header with the value from `ENGRAM_API_KEY`.
 
 ## MCP stdio server
 

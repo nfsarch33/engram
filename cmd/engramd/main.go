@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	embedchain "github.com/nfsarch33/engram/internal/adapters/embeddings/chain"
 	embedopenai "github.com/nfsarch33/engram/internal/adapters/embeddings/openai"
 	"github.com/nfsarch33/engram/internal/adapters/history/sqlite"
 	"github.com/nfsarch33/engram/internal/adapters/httpapi"
@@ -21,6 +22,7 @@ import (
 	llmopenai "github.com/nfsarch33/engram/internal/adapters/llm/openai"
 	mcpadapter "github.com/nfsarch33/engram/internal/adapters/mcp"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/inmem"
+	"github.com/nfsarch33/engram/internal/adapters/vectorstore/qdrant"
 	"github.com/nfsarch33/engram/internal/app/engramsvc"
 	"github.com/nfsarch33/engram/internal/config"
 	"github.com/nfsarch33/engram/internal/domain/engram"
@@ -100,7 +102,7 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 	}
 	defer hist.Close()
 
-	vec, err := inmem.NewStore()
+	vec, err := buildVectorStore(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("vector store: %w", err)
 	}
@@ -192,6 +194,23 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 	return nil
 }
 
+// buildVectorStore returns a Qdrant-backed store when ENGRAM_QDRANT_URL is
+// set, otherwise an in-memory store. This ensures docker-compose.prod.yaml
+// Qdrant config is actually honoured at runtime.
+func buildVectorStore(cfg config.Config, logger *slog.Logger) (engram.VectorStore, error) {
+	if cfg.HasQdrant() {
+		logger.Info("using Qdrant vector store", "url", cfg.QdrantURL)
+		return qdrant.New(qdrant.Options{
+			BaseURL:    cfg.QdrantURL,
+			APIKey:     cfg.QdrantAPIKey,
+			Collection: cfg.Collection,
+			Timeout:    cfg.Timeout,
+		}), nil
+	}
+	logger.Info("using in-memory vector store")
+	return inmem.NewStore()
+}
+
 // buildAdapters constructs the embedder and LLM client from cfg.
 // When noEmbed is true, a noopEmbedder is returned so the service starts
 // without an embedder URL (useful for dev/test; search will fail at runtime).
@@ -202,13 +221,33 @@ func buildAdapters(cfg config.Config, noEmbed bool) (engram.Embedder, engram.LLM
 	var llm engram.LLMClient
 
 	if cfg.HasEmbedder() {
-		embedder = embedopenai.New(embedopenai.Options{
+		primary := embedopenai.New(embedopenai.Options{
 			BaseURL: cfg.EmbedBaseURL,
 			APIKey:  cfg.EmbedAPIKey,
 			Model:   cfg.EmbedModel,
 			Dim:     cfg.EmbeddingDim,
 			Timeout: cfg.Timeout,
 		})
+		if cfg.HasEmbedFallback() {
+			fallback := embedopenai.New(embedopenai.Options{
+				BaseURL: cfg.EmbedFallbackURL,
+				APIKey:  cfg.EmbedFallbackKey,
+				Model:   cfg.EmbedFallbackModel,
+				Dim:     cfg.EmbeddingDim,
+				Timeout: cfg.Timeout,
+			})
+			chain, chainErr := embedchain.New(
+				embedchain.WithProvider("primary", primary),
+				embedchain.WithProvider("fallback", fallback),
+			)
+			if chainErr == nil {
+				embedder = chain
+			} else {
+				embedder = primary
+			}
+		} else {
+			embedder = primary
+		}
 	} else if noEmbed {
 		embedder = &noopEmbedder{}
 	}
