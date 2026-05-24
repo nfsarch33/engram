@@ -213,6 +213,44 @@ is idempotent and configurable via environment variables.
 - Logging via `log/slog` only.
 - TDD: tests before implementation; race-clean is a hard gate.
 
+## Agentrace Integration
+
+Engram emits structured NDJSON telemetry events for every MCP tool
+invocation. Events are written asynchronously and never block the tool
+response path.
+
+### Event format
+
+```json
+{"ts":"2026-05-25T00:15:42.123456789Z","event":"mcp_call","server":"engram","tool":"engram_search","latency_ms":7,"success":true}
+```
+
+| Field | Description |
+|---|---|
+| `ts` | ISO 8601 / RFC 3339 timestamp (UTC, nanosecond precision). |
+| `event` | Always `mcp_call`. |
+| `server` | Always `engram`. |
+| `tool` | Name of the invoked tool (e.g. `engram_add`, `mem0_search`). |
+| `latency_ms` | Wall-clock milliseconds for the tool dispatch. |
+| `success` | `true` if the tool returned without error. |
+
+### Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENGRAM_AGENTRACE_PATH` | `$HOME/logs/runx/agentrace-mcp.ndjson` | File path for agentrace NDJSON events. Set to empty to disable. |
+
+The log file is opened in append mode (`O_APPEND|O_CREATE|O_WRONLY`) and
+is safe for concurrent writers within the same process. External log
+rotation (e.g. `logrotate`) is supported since each write is a single
+`write(2)` syscall.
+
+### Disabling
+
+Set `ENGRAM_AGENTRACE_PATH=""` (empty string) to disable event emission
+entirely. The MCP adapter will skip tracer initialisation and incur no
+file I/O overhead.
+
 ## Layout
 
 ```

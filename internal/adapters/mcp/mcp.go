@@ -4,23 +4,29 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
+	"github.com/nfsarch33/engram/internal/agentrace"
 	"github.com/nfsarch33/engram/internal/app/engramsvc"
 	"github.com/nfsarch33/engram/internal/domain/engram"
 )
 
 // Adapter exposes the Engram service as a set of MCP tools.
 type Adapter struct {
-	svc   *engramsvc.Service
-	tools []mcplib.Tool
+	svc    *engramsvc.Service
+	tools  []mcplib.Tool
+	tracer *agentrace.Emitter
 }
 
 // NewAdapter creates an Adapter for the given service. It registers both the
 // canonical engram_* tools and mem0_* aliases so Engram can serve as a drop-in
 // replacement for mem0-mcp-go.
-func NewAdapter(svc *engramsvc.Service) *Adapter {
+func NewAdapter(svc *engramsvc.Service, opts ...Option) *Adapter {
 	a := &Adapter{svc: svc}
+	for _, o := range opts {
+		o(a)
+	}
 
 	addOpts := []mcplib.ToolOption{
 		mcplib.WithArray("messages",
@@ -93,13 +99,32 @@ func NewAdapter(svc *engramsvc.Service) *Adapter {
 	return a
 }
 
+// Option configures optional Adapter behaviour.
+type Option func(*Adapter)
+
+// WithTracer attaches an agentrace emitter for tool-call telemetry.
+func WithTracer(e *agentrace.Emitter) Option {
+	return func(a *Adapter) { a.tracer = e }
+}
+
 // Tools returns the MCP tool definitions for this adapter.
 func (a *Adapter) Tools() []mcplib.Tool {
 	return a.tools
 }
 
 // HandleTool dispatches a named tool call and returns the result.
+// When a tracer is configured, it emits an agentrace event non-blocking.
 func (a *Adapter) HandleTool(ctx context.Context, name string, params map[string]any) (any, error) {
+	start := time.Now()
+	result, err := a.dispatchTool(ctx, name, params)
+	if a.tracer != nil {
+		latency := time.Since(start)
+		go a.tracer.Emit(name, latency, err == nil)
+	}
+	return result, err
+}
+
+func (a *Adapter) dispatchTool(ctx context.Context, name string, params map[string]any) (any, error) {
 	switch name {
 	case "engram_add", "mem0_add":
 		return a.handleAdd(ctx, params)
