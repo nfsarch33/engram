@@ -1,0 +1,44 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  GOVERSION: "1.26.3"
+
+lint:
+  stage: lint
+  image: golang:${GOVERSION}
+  script:
+    - go vet ./...
+  tags:
+    - docker
+    - go
+
+test:
+  stage: test
+  image: golang:${GOVERSION}
+  script:
+    - go test -race -count=1 ./...
+  tags:
+    - docker
+    - go
+
+build:
+  stage: build
+  image: golang:${GOVERSION}
+  script:
+    - GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${CI_COMMIT_SHORT_SHA}" -o engram-linux-amd64 ./cmd/engramd/
+    - GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${CI_COMMIT_SHORT_SHA}" -o engramcli-linux-amd64 ./cmd/engramcli/
+  artifacts:
+    paths:
+      - engram-linux-amd64
+      - engramcli-linux-amd64
+    expire_in: 7 days
+  tags:
+    - docker
+    - go
+  only:
+    - main
+    - master
+    - tags
