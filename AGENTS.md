@@ -46,5 +46,5 @@ Max 3 direct Go dependencies (SQLite, ULID, mcp-go).
 
 ## Identity
 
-- Personal repos: `nfsarch33` / SSH `~/.ssh/agtc`
+- Personal repos: `nfsarch33`
 - NEVER use Zendesk identity for this repo.
