@@ -58,6 +58,29 @@ func (s *Service) Delete(ctx context.Context, req DeleteRequest) error {
 	return s.hist.SaveEvents(ctx, ev)
 }
 
+// DeleteAll removes all memory records matching the scoping filter.
+func (s *Service) DeleteAll(ctx context.Context, filter engram.HistoryFilter) (int, error) {
+	recs, err := s.hist.ListRecords(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("delete_all: list: %w", err)
+	}
+	ids := make([]engram.MemoryID, len(recs))
+	for i, r := range recs {
+		ids[i] = r.ID
+	}
+	for _, id := range ids {
+		if err := s.hist.DeleteRecord(ctx, id); err != nil {
+			return 0, fmt.Errorf("delete_all: record %s: %w", id, err)
+		}
+	}
+	if len(ids) > 0 {
+		if err := s.vec.DeleteBatch(ctx, ids); err != nil {
+			return 0, fmt.Errorf("delete_all: vectors: %w", err)
+		}
+	}
+	return len(ids), nil
+}
+
 // History returns all mutation events for a given memory record.
 func (s *Service) History(ctx context.Context, id engram.MemoryID) ([]engram.MemoryEvent, error) {
 	return s.hist.ListEvents(ctx, id)

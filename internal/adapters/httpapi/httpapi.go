@@ -33,6 +33,8 @@ func NewHandler(svc *engramsvc.Service) *Handler {
 	h.mux.HandleFunc("DELETE /memories/{id}", h.deleteMemory)
 	h.mux.HandleFunc("GET /memories/{id}/history", h.getHistory)
 	h.mux.HandleFunc("GET /healthz", h.healthz)
+	h.mux.HandleFunc("GET /metrics", h.metrics)
+	h.mux.HandleFunc("DELETE /memories", h.deleteAllMemories)
 	return h
 }
 
@@ -215,6 +217,34 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, errorResponse{Error: msg})
+}
+
+func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
+	recs, err := h.svc.GetAll(r.Context(), engram.HistoryFilter{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "metrics: "+err.Error())
+		return
+	}
+	health := h.svc.HealthCheck(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"memory_count": len(recs),
+		"status":       health.Status,
+		"subsystems":   health.Subsystem,
+	})
+}
+
+func (h *Handler) deleteAllMemories(w http.ResponseWriter, r *http.Request) {
+	filter := engram.HistoryFilter{
+		UserID:  r.URL.Query().Get("user_id"),
+		AgentID: r.URL.Query().Get("agent_id"),
+		AppID:   r.URL.Query().Get("app_id"),
+	}
+	count, err := h.svc.DeleteAll(r.Context(), filter)
+	if err != nil {
+		h.logAndRespond(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "count": count})
 }
 
 func (h *Handler) logAndRespond(w http.ResponseWriter, r *http.Request, err error) {

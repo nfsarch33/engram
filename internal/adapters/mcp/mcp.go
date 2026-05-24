@@ -82,6 +82,8 @@ func NewAdapter(svc *engramsvc.Service, opts ...Option) *Adapter {
 			mcplib.WithDescription("List change history events for a memory"),
 			mcplib.WithString("id", mcplib.Required(), mcplib.Description("Memory ID")),
 		),
+		mcplib.NewTool("engram_delete_all",
+			append([]mcplib.ToolOption{mcplib.WithDescription("Delete all memories matching a scope filter")}, getAllOpts...)...),
 
 		// Mem0-compatible aliases for drop-in replacement of mem0-mcp-go.
 		mcplib.NewTool("mem0_add",
@@ -92,6 +94,8 @@ func NewAdapter(svc *engramsvc.Service, opts ...Option) *Adapter {
 			append([]mcplib.ToolOption{mcplib.WithDescription("List all memories (Mem0-compatible alias)")}, getAllOpts...)...),
 		mcplib.NewTool("mem0_delete",
 			append([]mcplib.ToolOption{mcplib.WithDescription("Delete a memory (Mem0-compatible alias)")}, deleteOpts...)...),
+		mcplib.NewTool("mem0_delete_all",
+			append([]mcplib.ToolOption{mcplib.WithDescription("Delete all memories (Mem0-compatible alias)")}, getAllOpts...)...),
 		mcplib.NewTool("mem0_doctor",
 			mcplib.WithDescription("Health check (Mem0-compatible alias)"),
 		),
@@ -136,6 +140,8 @@ func (a *Adapter) dispatchTool(ctx context.Context, name string, params map[stri
 		return a.handleUpdate(ctx, params)
 	case "engram_delete", "mem0_delete":
 		return a.handleDelete(ctx, params)
+	case "engram_delete_all", "mem0_delete_all":
+		return a.handleDeleteAll(ctx, params)
 	case "engram_history":
 		return a.handleHistory(ctx, params)
 	case "mem0_get_all":
@@ -210,6 +216,20 @@ func (a *Adapter) handleDelete(ctx context.Context, p map[string]any) (any, erro
 		return nil, err
 	}
 	return map[string]string{"status": "deleted"}, nil
+}
+
+func (a *Adapter) handleDeleteAll(ctx context.Context, p map[string]any) (any, error) {
+	count, err := a.svc.DeleteAll(ctx, engram.HistoryFilter{
+		UserID:      strVal(p, "user_id"),
+		AgentID:     strVal(p, "agent_id"),
+		RunID:       strVal(p, "run_id"),
+		AppID:       strVal(p, "app_id"),
+		WorkspaceID: strVal(p, "workspace_id"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"status": "deleted", "count": count}, nil
 }
 
 func (a *Adapter) handleHistory(ctx context.Context, p map[string]any) (any, error) {
