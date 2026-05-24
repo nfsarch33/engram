@@ -148,9 +148,14 @@ func runAdd(deps Deps, args []string) int {
 		return 1
 	}
 
-	var out map[string]any
+	var out []map[string]any
 	json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
-	fmt.Fprintf(deps.Stdout, "added: %v\n", out["id"])
+	for _, rec := range out {
+		fmt.Fprintf(deps.Stdout, "added: %v\n", rec["id"])
+	}
+	if len(out) == 0 {
+		fmt.Fprintln(deps.Stdout, "added (no records returned)")
+	}
 	return 0
 }
 
@@ -191,18 +196,14 @@ func runSearch(deps Deps, args []string) int {
 		return 1
 	}
 
-	var out map[string]any
-	json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
-	results, _ := out["results"].([]any)
-	for i, r := range results {
-		rm, _ := r.(map[string]any)
-		fmt.Fprintf(deps.Stdout, "[%d] id=%v score=%v\n", i+1, rm["id"], rm["score"])
-		if msgs, ok := rm["messages"].([]any); ok {
-			for _, m := range msgs {
-				mm, _ := m.(map[string]any)
-				fmt.Fprintf(deps.Stdout, "     %v: %v\n", mm["role"], mm["content"])
-			}
-		}
+	var results []map[string]any
+	json.NewDecoder(resp.Body).Decode(&results) //nolint:errcheck
+	if len(results) == 0 {
+		fmt.Fprintln(deps.Stdout, "no results")
+		return 0
+	}
+	for i, rm := range results {
+		fmt.Fprintf(deps.Stdout, "[%d] id=%v score=%v text=%v\n", i+1, rm["id"], rm["score"], rm["text"])
 	}
 	return 0
 }
