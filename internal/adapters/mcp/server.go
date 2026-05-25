@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -38,11 +39,11 @@ func (s *Server) registerTools() {
 			if err != nil {
 				return mcplib.NewToolResultErrorf("%s: %v", name, err), nil
 			}
-			out, jerr := mcplib.NewToolResultJSON(result)
+			b, jerr := json.Marshal(result)
 			if jerr != nil {
 				return mcplib.NewToolResultErrorf("%s: marshal result: %v", name, jerr), nil
 			}
-			return out, nil
+			return mcplib.NewToolResultText(string(b)), nil
 		})
 	}
 }
