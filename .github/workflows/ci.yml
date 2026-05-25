@@ -1,0 +1,66 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v6
+
+  test:
+    runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Check coverage
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: ${total}%"
+          if [ "$(echo "$total < 70" | bc)" -eq 1 ]; then
+            echo "::warning::Coverage ${total}% is below 70% threshold"
+            exit 1
+          fi
+
+  build:
+    runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build binaries
+        run: |
+          go build -ldflags "-s -w" -o engram-server ./cmd/engramd/
+          go build -ldflags "-s -w" -o engram-cli ./cmd/engramcli/
+
+  security:
+    runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+      - name: Run gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -quiet ./...
+        continue-on-error: true
