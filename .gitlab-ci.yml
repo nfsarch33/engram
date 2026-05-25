@@ -2,43 +2,75 @@ stages:
   - lint
   - test
   - build
+  - security
 
 variables:
-  GOVERSION: "1.26.3"
+  GOVERSION: "1.26"
+  GOFLAGS: "-buildvcs=false"
 
-lint:
-  stage: lint
+.go_base:
   image: golang:${GOVERSION}
+  before_script:
+    - go mod download
+  tags:
+    - docker
+
+vet:
+  extends: .go_base
+  stage: lint
   script:
     - go vet ./...
-  tags:
-    - docker
-    - go
+
+lint:
+  extends: .go_base
+  stage: lint
+  script:
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    - golangci-lint run --timeout 5m ./...
+  allow_failure: true
 
 test:
+  extends: .go_base
   stage: test
-  image: golang:${GOVERSION}
   script:
-    - go test -race -count=1 ./...
-  tags:
-    - docker
-    - go
+    - go test -race -count=1 -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out | tail -1
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.out
+    paths:
+      - coverage.out
+    expire_in: 7 days
+  coverage: "/total:\\s+\\(statements\\)\\s+(\\d+\\.\\d+)%/"
 
 build:
+  extends: .go_base
   stage: build
-  image: golang:${GOVERSION}
   script:
-    - GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${CI_COMMIT_SHORT_SHA}" -o engram-linux-amd64 ./cmd/engramd/
-    - GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${CI_COMMIT_SHORT_SHA}" -o engramcli-linux-amd64 ./cmd/engramcli/
+    - GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${CI_COMMIT_SHORT_SHA}" -o engram-linux-amd64 ./cmd/engramd/
+    - GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${CI_COMMIT_SHORT_SHA}" -o engramcli-linux-amd64 ./cmd/engramcli/
   artifacts:
     paths:
       - engram-linux-amd64
       - engramcli-linux-amd64
     expire_in: 7 days
-  tags:
-    - docker
-    - go
   only:
-    - main
     - master
     - tags
+
+govulncheck:
+  extends: .go_base
+  stage: security
+  script:
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+
+gosec:
+  extends: .go_base
+  stage: security
+  script:
+    - go install github.com/securego/gosec/v2/cmd/gosec@latest
+    - gosec -quiet ./...
+  allow_failure: true
