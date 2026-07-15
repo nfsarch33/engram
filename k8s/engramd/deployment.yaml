@@ -1,0 +1,135 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: engram
+  labels:
+    app.kubernetes.io/part-of: helixon-platform
+    owner: argo-cd
+    sprint: v14882
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: engramd-config
+  namespace: engram
+  labels:
+    app: engramd
+    app.kubernetes.io/part-of: helixon-platform
+data:
+  owner: argo-cd
+  sprint: v14882
+  addr: "127.0.0.1:8280"
+  # NOTE: --mem0-compat is intentionally NOT enabled here.
+  # Per master prompt §5, mem0 is forbidden. Engram's compat
+  # layer is a downstream backward-compat shim, kept upstream
+  # for consumers who haven't migrated yet; we never enable
+  # it in our deployment manifest.
+  db_path: "/var/lib/engram/engram.db"
+  embed_url: "http://engram-embedder.embed.svc.cluster.local:11434"
+  embed_model: "nomic-embed-text:v1.5"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engramd
+  namespace: engram
+  labels:
+    app: engramd
+    app.kubernetes.io/part-of: helixon-platform
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8280
+    targetPort: 8280
+    protocol: TCP
+  selector:
+    app: engramd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engramd
+  namespace: engram
+  labels:
+    app: engramd
+    app.kubernetes.io/part-of: helixon-platform
+    sprint: v14882
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engramd
+  template:
+    metadata:
+      labels:
+        app: engramd
+        app.kubernetes.io/part-of: helixon-platform
+    spec:
+      # KEEP existing user data: engramd writes SQLite at this path.
+      # The k3s podman-with-pvc would require creating a PVC; using
+      # hostPath on the wsl1 control-plane node keeps v14882 simple.
+      # A proper PVC is added in v14885 (container hardening).
+      hostNetwork: false
+      containers:
+      - name: engramd
+        # No --mem0-compat flag. We keep our Engram-only posture.
+        image: ghcr.io/helixon/engramd:dev
+        imagePullPolicy: IfNotPresent
+        args:
+          - --addr=0.0.0.0:8280
+          - --no-mem0-compat
+        env:
+        - name: ENGRAM_ADDR
+          value: "0.0.0.0:8280"
+        - name: ENGRAM_DB_PATH
+          value: /var/lib/engram/engram.db
+        - name: ENGRAM_EMBED_URL
+          valueFrom:
+            configMapKeyRef:
+              name: engramd-config
+              key: embed_url
+        - name: ENGRAM_EMBED_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: engramd-config
+              key: embed_model
+        ports:
+        - containerPort: 8280
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8280
+          initialDelaySeconds: 5
+          periodSeconds: 30
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8280
+          initialDelaySeconds: 3
+          periodSeconds: 10
+          timeoutSeconds: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+        - mountPath: /var/lib/engram
+          name: engram-data
+      volumes:
+      - name: engram-data
+        emptyDir: {}  # v14885 swap to PVC
