@@ -1,0 +1,73 @@
+# syntax=docker/dockerfile:1.7
+#
+# Containerfile for engramd (v14885: distroless decommission)
+# Source: github.com/nfsarch33/engram
+#
+# Replaces gcr.io/distroless/base-debian12:nonroot with
+# debian:bookworm-slim + tini for proper PID 1 signal handling.
+# Migration plan: evidence/v14884-distroless-sweep.
+#
+# No mem0-compat (--no-mem0-compat is enforced at runtime).
+# Configuration is via env vars (see internal/config/config.go):
+#   ENGRAM_ADDR                   default :8280
+#   ENGRAM_MEM0COMPAT_ADDR        default :8281 (NEVER used)
+#   ENGRAM_DB_PATH                default engram.db
+#   ENGRAM_EMBED_URL              OpenAI-compatible embed endpoint
+#   ENGRAM_EMBED_MODEL            e.g. nomic-embed-text:v1.5
+#   ENGRAM_EMBED_FALLBACK_URL     external fallback
+
+#####################
+# Stage 1: Go builder
+#####################
+FROM golang:1.26-bookworm AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    go mod download
+
+COPY . .
+
+ARG VERSION=dev
+
+ENV CGO_ENABLED=0
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+        -o /out/engramd ./cmd/engramd
+
+#####################
+# Stage 2: Runtime (debian-slim + tini)
+#####################
+FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.title="engramd" \
+      org.opencontainers.image.description="Engram - agent-first memory engine (Helixon L1)" \
+      org.opencontainers.image.source="https://github.com/nfsarch33/engram" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="MIT" \
+      helixon.security.distroless-free=true
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        tini \
+        tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+COPY --from=builder /out/engramd /usr/local/bin/engramd
+
+# Nonroot user
+RUN groupadd --system --gid 1000 helixon \
+    && useradd  --system --uid 1000 --gid helixon helixon \
+    && mkdir -p /var/lib/engram \
+    && chown -R helixon:helixon /var/lib/engram
+
+# Arg defaults to listen for systemd/svcregistry-style usage;
+# k3s uses 0.0.0.0 via ENGRAM_ADDR env override.
+USER helixon:helixon
+VOLUME ["/var/lib/engram"]
+EXPOSE 8280
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/usr/local/bin/engramd"]

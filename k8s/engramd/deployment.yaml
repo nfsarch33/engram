@@ -28,6 +28,8 @@ data:
   db_path: "/var/lib/engram/engram.db"
   embed_url: "http://engram-embedder.embed.svc.cluster.local:11434"
   embed_model: "nomic-embed-text:v1.5"
+  # v14885 migration: switch from localhost ollama (systemd path) to
+  # the cluster-internal engram-embedder service (ArgoCD-managed).
 ---
 apiVersion: v1
 kind: Service

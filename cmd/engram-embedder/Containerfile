@@ -1,0 +1,69 @@
+# syntax=docker/dockerfile:1.7
+#
+# Containerfile for engram-embedder (v14885)
+# Source: derived from docker.io/ollama/ollama:0.5.7
+#
+# Goal: replace the 3.31 GB upstream ollama image with a
+# debian-slim + tini + pre-loaded nomic-embed-text:v1.5 model.
+# The Engram embed adapter (internal/adapters/embeddings/ollama)
+# only needs /api/embeddings POST, not the full ollama agent
+# framework, so we trim down significantly.
+#
+# NOT a fork of ollama — we run the same ollama binary but on
+# a smaller runtime and pre-bake the embed model at build time.
+
+#####################
+# Stage 1: Get ollama + a pre-baked model
+#####################
+FROM docker.io/ollama/ollama:0.5.7 AS vendor
+
+# Pull the only model we need at build time, then copy the blob
+# into a known cache dir.
+RUN ollama serve & \
+    OLLAMA_PID=$! && \
+    sleep 4 && \
+    ollama pull nomic-embed-text:v1.5 && \
+    kill $OLLAMA_PID && \
+    wait $OLLAMA_PID 2>/dev/null || true
+
+#####################
+# Stage 2: Runtime (debian-slim + tini)
+#####################
+FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.title="engram-embedder" \
+      org.opencontainers.image.description="Trimmed ollama runtime for Engram embeddings; serves nomic-embed-text:v1.5" \
+      org.opencontainers.image.source="https://github.com/nfsarch33/engram" \
+      org.opencontainers.image.licenses="MIT" \
+      helixon.security.distroless-free=true \
+      helixon.role="engram-embedder"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        tini \
+        tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy ollama binary from the vendor image
+COPY --from=vendor /usr/bin/ollama /usr/bin/ollama
+COPY --from=vendor /usr/lib/ollama/ /usr/lib/ollama/
+
+# Copy pre-baked model
+COPY --from=vendor /root/.ollama/ /root/.ollama/
+
+# OLLAMA_HOST binds; default 0.0.0.0:11434
+ENV OLLAMA_HOST=0.0.0.0:11434
+ENV OLLAMA_MODELS=/root/.ollama/models
+
+# Nonroot user
+RUN groupadd --system --gid 1000 helixon \
+    && useradd  --system --uid 1000 --gid helixon helixon \
+    && mkdir -p /root/.ollama \
+    && chown -R helixon:helixon /root/.ollama
+
+USER helixon:helixon
+EXPOSE 11434
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/usr/bin/ollama", "serve"]
