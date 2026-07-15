@@ -239,6 +239,10 @@ func buildAdapters(cfg config.Config, noEmbed bool) (engram.Embedder, engram.LLM
 			chain, chainErr := embedchain.New(
 				embedchain.WithProvider("primary", primary),
 				embedchain.WithProvider("fallback", fallback),
+				// v14857: attach Prometheus observer so cost alerting works.
+				// engram_embedder_fallback_total{from,to,reason} increments
+				// every time chain falls through to the paid fallback.
+				embedchain.WithObserver(embedchain.NewPrometheusObserver()),
 			)
 			if chainErr == nil {
 				embedder = chain
