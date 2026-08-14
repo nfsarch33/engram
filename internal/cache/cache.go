@@ -140,3 +140,16 @@ func (c *Cache) removeLocked(elem *list.Element) {
 	delete(c.items, e.key)
 	c.order.Remove(elem)
 }
+
+// Contains reports whether key is present in the cache WITHOUT refreshing
+// LRU recency. Use Get instead when you want a hit to count as access.
+//
+// Added by q10b-2 to GREEN the Ginkgo spec in cache_ginkgo_test.go.
+func (c *Cache) Contains(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.items[key]; !ok {
+		return false
+	}
+	return true
+}

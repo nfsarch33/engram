@@ -84,6 +84,39 @@ goleak:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
+# q11-2 — Ginkgo integration sweep (L0 rule 42)
+# Mirrors the canonical job from sprintboard-mcp/.gitlab-ci.yml.
+# Requires: ginkgo + gomega go.mod entries; one tagged *_ginkgo_test.go
+# suite per package. The cache.Contains RED→GREEN spec is the seed;
+# additional specs land in q11-3..q11-5.
+integration:ginkgo:
+  stage: test
+  image: golang:$GO_VERSION
+  tags:
+    - helixon
+    - self-hosted
+  script:
+    - go install github.com/onsi/ginkgo/v2/ginkgo@latest
+    - ginkgo -r --tags=integration --trace --cover --coverprofile=integration.coverprofile
+    - go tool cover -func=integration.coverprofile | tee coverage.txt
+    - go test -race -tags=integration -count=1 ./...
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: integration.coverprofile
+    paths:
+      - integration.coverprofile
+      - coverage.txt
+    expire_in: 7 days
+  coverage: '/total:\\\\s+\\\\(statements\\\\)\\\\s+(\\\\d+\\\\.\\\\d+)%/'
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  needs: []
+
 # ─────────────────────────────────────────────────────────────
 # Stage 3: publish
 # ─────────────────────────────────────────────────────────────
