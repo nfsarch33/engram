@@ -71,7 +71,7 @@ spec:
     spec:
       # KEEP existing user data: engramd writes SQLite at this path.
       # The k3s podman-with-pvc would require creating a PVC; using
-      # hostPath on the wsl1 control-plane node keeps v14882 simple.
+      # hostPath on the control-plane node keeps v14882 simple.
       # A proper PVC is added in v14885 (container hardening).
       hostNetwork: false
       containers:
