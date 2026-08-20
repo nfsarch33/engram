@@ -33,7 +33,15 @@ func NewHandler(svc *engramsvc.Service) *Handler {
 	h.mux.HandleFunc("DELETE /memories/{id}", h.deleteMemory)
 	h.mux.HandleFunc("GET /memories/{id}/history", h.getHistory)
 	h.mux.HandleFunc("GET /healthz", h.healthz)
-	h.mux.HandleFunc("GET /metrics", h.metrics)
+	// v18760: /metrics is Prometheus exposition; the pre-v18760 JSON document
+	// moved to /metrics.json (see prom.go for the collector).
+	if prom, err := h.promHandler(); err == nil {
+		h.mux.Handle("GET /metrics", prom)
+	} else {
+		h.logger.Error("prometheus handler init failed; keeping JSON /metrics", "err", err)
+		h.mux.HandleFunc("GET /metrics", h.metrics)
+	}
+	h.mux.HandleFunc("GET /metrics.json", h.metrics)
 	h.mux.HandleFunc("DELETE /memories", h.deleteAllMemories)
 	return h
 }
