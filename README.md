@@ -10,7 +10,7 @@ endpoints.
 - Go: 1.26.3 (GVM canonical)
 - Direct deps: `github.com/mark3labs/mcp-go`, `github.com/oklog/ulid/v2`,
   `modernc.org/sqlite`
-- License: personal-use; not for redistribution.
+License: MIT (see [LICENSE](LICENSE)). If a more restrictive licence is intended, replace the LICENSE file — the file, not this line, governs.
 
 ## What is Engram
 
