@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,10 +49,33 @@ type Store struct {
 	db *sql.DB
 }
 
+// dsnPragmas ride in the DSN so they apply to the connection that is opened,
+// not to whichever one served a later PRAGMA statement. WAL with
+// synchronous=NORMAL takes the fsync off every commit: at SQLite's default
+// FULL, a delete (record + event, two commits) has been measured at 14-23s on
+// a host whose write path stalls under load, which is longer than clients
+// wait. An application crash stays fully safe at NORMAL; an OS crash can
+// lose the last transactions, which is the documented trade for WAL.
+// busy_timeout avoids SQLITE_BUSY while a fresh WAL file is initialised.
+const dsnPragmas = "_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)"
+
+// dsnFor returns the DSN for dbPath: pragmas appended for file databases,
+// ":memory:" untouched (journal and sync settings mean nothing there).
+func dsnFor(dbPath string) string {
+	if dbPath == ":memory:" || strings.Contains(dbPath, "_pragma=") {
+		return dbPath
+	}
+	sep := "?"
+	if strings.Contains(dbPath, "?") {
+		sep = "&"
+	}
+	return dbPath + sep + dsnPragmas
+}
+
 // NewStore opens (or creates) a SQLite database at dbPath.
 // Use ":memory:" for an in-process test database.
 func NewStore(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", dsnFor(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: open %q: %w", dbPath, err)
 	}
@@ -246,9 +270,9 @@ type scanner interface {
 
 func scanRecord(row scanner) (engram.MemoryRecord, error) {
 	var (
-		id, text, meta                              string
+		id, text, meta                             string
 		userID, agentID, runID, appID, workspaceID string
-		createdNano, updatedNano                    int64
+		createdNano, updatedNano                   int64
 	)
 	err := row.Scan(&id, &text, &meta, &userID, &agentID, &runID, &appID, &workspaceID, &createdNano, &updatedNano)
 	if err == sql.ErrNoRows {
