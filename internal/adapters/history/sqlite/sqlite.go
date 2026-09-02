@@ -158,7 +158,9 @@ func (s *Store) ListRecords(ctx context.Context, f engram.HistoryFilter) ([]engr
 		query += " AND workspace_id=?"
 		args = append(args, f.WorkspaceID)
 	}
-	query += " ORDER BY created_at ASC"
+	// Insertion order (rowid), not created_at: the wall clock on a host can
+	// step backwards, and a listing that reorders on it reorders history.
+	query += " ORDER BY rowid ASC"
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -211,7 +213,7 @@ func (s *Store) SaveEvents(ctx context.Context, events []engram.MemoryEvent) err
 func (s *Store) ListEvents(ctx context.Context, id engram.MemoryID) ([]engram.MemoryEvent, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT event_type, memory_id, new_text, old_text
-		 FROM memory_events WHERE memory_id=? ORDER BY created_at ASC`, string(id))
+		 FROM memory_events WHERE memory_id=? ORDER BY rowid ASC`, string(id))
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: ListEvents: %w", err)
 	}

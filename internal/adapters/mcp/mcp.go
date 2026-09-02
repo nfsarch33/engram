@@ -31,7 +31,7 @@ func NewAdapter(svc *engramsvc.Service, opts ...Option) *Adapter {
 	addOpts := []mcplib.ToolOption{
 		mcplib.WithArray("messages",
 			mcplib.Required(),
-			mcplib.Description("List of message strings to store as memories"),
+			mcplib.Description("Messages to store as memories: bare strings or {role, content} objects"),
 		),
 		mcplib.WithString("user_id", mcplib.Description("Owner user ID")),
 		mcplib.WithString("agent_id"),
@@ -154,15 +154,11 @@ func (a *Adapter) dispatchTool(ctx context.Context, name string, params map[stri
 }
 
 func (a *Adapter) handleAdd(ctx context.Context, p map[string]any) (any, error) {
+	// Both wire shapes are accepted (bare strings and chat-style objects);
+	// dropping the object shape here is what broke every fleet writer.
 	raw, _ := p["messages"].([]any)
-	messages := make([]string, 0, len(raw))
-	for _, m := range raw {
-		if s, ok := m.(string); ok {
-			messages = append(messages, s)
-		}
-	}
 	req := engramsvc.AddRequest{
-		Messages:    messages,
+		Messages:    engramsvc.MessageTexts(raw),
 		UserID:      strVal(p, "user_id"),
 		AgentID:     strVal(p, "agent_id"),
 		RunID:       strVal(p, "run_id"),

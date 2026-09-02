@@ -12,22 +12,43 @@ permissions:
 jobs:
   lint:
     runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # MUST stay false on the self-hosted runner: the post-job cache-save
+          # tar goes into uninterruptible sleep on this substrate and holds the
+          # only runner until the 360-minute default timeout. ~/go persists
+          # between jobs on a persistent runner anyway.
+          cache: false
       - run: go vet ./...
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          # Same reason as cache: false above: the action's own post-run cache
+          # save is a tar; observed wedged in D-state for 28 minutes AFTER the
+          # lint itself had passed.
+          skip-cache: true
+          # Pinned. Unpinned, the action resolved a linter built with an
+          # older Go than go.mod targets; it refused to load (exit 3) and
+          # every downstream job reported "skipped", which reads as green.
+          version: v2.13.0
 
   test:
     runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # MUST stay false on the self-hosted runner: the post-job cache-save
+          # tar goes into uninterruptible sleep on this substrate and holds the
+          # only runner until the 360-minute default timeout. ~/go persists
+          # between jobs on a persistent runner anyway.
+          cache: false
       - run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Check coverage
         run: |
@@ -40,12 +61,18 @@ jobs:
 
   build:
     runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    timeout-minutes: 30
     needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # MUST stay false on the self-hosted runner: the post-job cache-save
+          # tar goes into uninterruptible sleep on this substrate and holds the
+          # only runner until the 360-minute default timeout. ~/go persists
+          # between jobs on a persistent runner anyway.
+          cache: false
       - name: Build binaries
         run: |
           go build -ldflags "-s -w" -o engram-server ./cmd/engramd/
@@ -53,12 +80,18 @@ jobs:
 
   security:
     runs-on: [self-hosted, linux]  # fallback: ubuntu-latest
+    timeout-minutes: 30
     needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # MUST stay false on the self-hosted runner: the post-job cache-save
+          # tar goes into uninterruptible sleep on this substrate and holds the
+          # only runner until the 360-minute default timeout. ~/go persists
+          # between jobs on a persistent runner anyway.
+          cache: false
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
       - name: Run gosec
         run: |

@@ -1,11 +1,16 @@
 // Package inmem implements engram.VectorStore with brute-force cosine similarity.
 // Suitable for development, testing, and small deployments (<10k vectors).
+//
+// The index lives only in process memory: a restart empties it. Deployments
+// that must survive a restart without re-embedding wrap it with the sqlitevec
+// adapter, which composes this store and writes every change through.
 package inmem
 
 import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -26,6 +31,12 @@ type Store struct {
 	entries map[engram.MemoryID]entry
 	dim     int // set by EnsureCollection
 }
+
+// Compile-time checks: the store is a VectorStore and can be inspected.
+var (
+	_ engram.VectorStore    = (*Store)(nil)
+	_ engram.IndexInspector = (*Store)(nil)
+)
 
 // NewStore creates an empty in-memory vector store.
 func NewStore() (*Store, error) {
@@ -61,7 +72,10 @@ func (s *Store) UpsertBatch(_ context.Context, records []engram.VectorRecord) er
 	return nil
 }
 
-// Search returns the top-k records closest to the query vector (cosine similarity).
+// Search returns the top-k records closest to the query vector (cosine
+// similarity) among those whose payload matches every filter in q.Filters.
+// Filters are equality constraints; a record lacking a filtered key never
+// matches. An empty filter set matches everything.
 func (s *Store) Search(_ context.Context, q engram.VectorQuery) ([]engram.VectorResult, error) {
 	if q.TopK <= 0 {
 		return nil, fmt.Errorf("inmem: top-k must be positive")
@@ -78,13 +92,19 @@ func (s *Store) Search(_ context.Context, q engram.VectorQuery) ([]engram.Vector
 	s.mu.RLock()
 	candidates := make([]scored, 0, len(s.entries))
 	for _, e := range s.entries {
+		if !matchesFilters(e.payload, q.Filters) {
+			continue
+		}
 		sim := cosineSimilarity(q.Vector, queryNorm, e.vector, e.norm)
 		candidates = append(candidates, scored{id: e.id, score: sim, p: e.payload})
 	}
 	s.mu.RUnlock()
 
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].score > candidates[j].score
+		if candidates[i].score != candidates[j].score {
+			return candidates[i].score > candidates[j].score
+		}
+		return candidates[i].id < candidates[j].id // deterministic ties
 	})
 
 	limit := q.TopK
@@ -110,6 +130,38 @@ func (s *Store) DeleteBatch(_ context.Context, ids []engram.MemoryID) error {
 		delete(s.entries, id)
 	}
 	return nil
+}
+
+// IndexedIDs returns the IDs currently held by the index, in no particular
+// order. Implements engram.IndexInspector.
+func (s *Store) IndexedIDs(_ context.Context) ([]engram.MemoryID, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ids := make([]engram.MemoryID, 0, len(s.entries))
+	for id := range s.entries {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// Len reports how many vectors the index holds.
+func (s *Store) Len() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.entries)
+}
+
+// matchesFilters reports whether payload satisfies every filter as an
+// equality constraint. Comparison goes through reflect.DeepEqual so a
+// non-comparable filter value cannot panic the search goroutine.
+func matchesFilters(payload, filters map[string]any) bool {
+	for k, want := range filters {
+		got, ok := payload[k]
+		if !ok || !reflect.DeepEqual(got, want) {
+			return false
+		}
+	}
+	return true
 }
 
 // --- math helpers -----------------------------------------------------------

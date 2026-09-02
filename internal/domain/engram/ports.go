@@ -25,11 +25,25 @@ type VectorResult struct {
 }
 
 // VectorStore is the port for semantic vector operations.
+//
+// Search MUST honour VectorQuery.Filters as equality constraints on the
+// record payload: a query scoped to a workspace never returns another
+// workspace's record. Every adapter is held to that contract by the shared
+// conformance tests.
 type VectorStore interface {
 	EnsureCollection(ctx context.Context, name string, dim int) error
 	UpsertBatch(ctx context.Context, records []VectorRecord) error
 	Search(ctx context.Context, q VectorQuery) ([]VectorResult, error)
 	DeleteBatch(ctx context.Context, ids []MemoryID) error
+}
+
+// IndexInspector is an optional VectorStore capability: reporting which IDs
+// the index currently holds. The service uses it to find history records
+// that lost their vector (a restart on a non-durable store, a restore from
+// backup, an embedder change) so only the gap is re-embedded, and to expose
+// that gap as a metric instead of letting search silently forget.
+type IndexInspector interface {
+	IndexedIDs(ctx context.Context) ([]MemoryID, error)
 }
 
 // HistoryFilter scopes history queries to a particular agent/user/run context.

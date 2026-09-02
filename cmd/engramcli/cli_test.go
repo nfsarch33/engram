@@ -18,13 +18,13 @@ func mockServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /memories", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode([]map[string]any{{"id": "01JTEST00000000000000AAAAA", "text": "hello world"}})
+		_ = json.NewEncoder(w).Encode([]map[string]any{{"id": "01JTEST00000000000000AAAAA", "text": "hello world"}})
 	})
 
 	// POST /search -> 200 with array of SearchResult{record, score}
 	mux.HandleFunc("POST /search", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]map[string]any{
+		_ = json.NewEncoder(w).Encode([]map[string]any{
 			{"record": map[string]any{"id": "01JTEST00000000000000AAAAA", "text": "hello"}, "score": 0.95},
 		})
 	})
@@ -37,7 +37,7 @@ func mockServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":       id,
 			"messages": []map[string]any{{"role": "user", "content": "stored message"}},
 		})
@@ -51,7 +51,7 @@ func mockServer(t *testing.T) *httptest.Server {
 	// GET /healthz
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 	})
 
 	return httptest.NewServer(mux)

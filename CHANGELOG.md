@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Write path: `engram_add` (MCP) and `POST /memories` accept messages as
+  chat-style `{role, content}` / `{text}` objects as well as bare strings.
+  Objects were silently dropped, so every writer using that shape failed with
+  "text must not be empty" while search kept working.
+- Vector search honours scope filters (`user_id`, `agent_id`, `workspace_id`)
+  on the in-memory store; a workspace-scoped query no longer returns other
+  workspaces' records. Equal scores order deterministically by id.
+- History listings order by insertion sequence (rowid) instead of
+  `created_at`, so a host clock that steps backwards cannot reorder history.
+- CI: golangci-lint pinned to a version built with a Go new enough for
+  `go.mod`; the unpinned action failed to load and left every downstream job
+  "skipped".
+
+### Added
+
+- Durable vector index (`vectorstore/sqlitevec`, the default): vectors are
+  written through to `ENGRAM_VECTOR_DB_PATH` and restored at boot, so a
+  restart neither empties semantic search nor re-spends embedding calls.
+  `ENGRAM_VECTOR_STORE=inmem` keeps the previous process-memory behaviour.
+- `engramd --reindex-missing`: embeds and indexes only the history records
+  missing from the vector index (restore from backup, embedder change).
+- Metrics `engram_vector_indexed_count` and `engram_vector_index_gap`.
+- Live recall evaluation (`internal/integration`, build tag `integration`,
+  gated on `ENGRAM_LIVE_URL`): a fixed corpus scored as recall@5 / MRR@5
+  with a `rubric_version` envelope written to `ENGRAM_RECALL_OUT`.
+
 ## [1.0.0] - 2026-05-25
 
 Engram is now the PRIMARY personal memory engine, replacing Mem0 OSS

@@ -94,12 +94,3 @@ func TestE2E_HealthCheck(t *testing.T) {
 		t.Error("HealthCheck returned nil subsystem map")
 	}
 }
-
-func inferResponses(n int) []string {
-	resp := `{"facts":[{"text":"test fact","event":"ADD"}]}`
-	out := make([]string, n)
-	for i := range out {
-		out[i] = resp
-	}
-	return out
-}

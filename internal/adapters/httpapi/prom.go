@@ -10,6 +10,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/nfsarch33/engram/internal/app/engramsvc"
 	"github.com/nfsarch33/engram/internal/domain/engram"
 )
 
@@ -40,6 +42,18 @@ var (
 		"Count of scrape-time service errors (memory enumeration failures).",
 		nil, nil,
 	)
+	vectorIndexedDesc = prometheus.NewDesc(
+		"engram_vector_indexed_count",
+		"Memory records present in the vector index, i.e. visible to semantic search.",
+		nil, nil,
+	)
+	vectorGapDesc = prometheus.NewDesc(
+		"engram_vector_index_gap",
+		"Memory records with no vector: stored but invisible to semantic search. "+
+			"Non-zero after a restart on a non-durable index, a restore from backup, or an "+
+			"embedder change; engramd --reindex-missing clears it.",
+		nil, nil,
+	)
 )
 
 // svcCollector derives gauges from the live service at scrape time. It is
@@ -54,6 +68,8 @@ func (c *svcCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- memoryCountDesc
 	ch <- subsystemUpDesc
 	ch <- scrapeErrorsDesc
+	ch <- vectorIndexedDesc
+	ch <- vectorGapDesc
 }
 
 func (c *svcCollector) Collect(ch chan<- prometheus.Metric) {
@@ -63,6 +79,15 @@ func (c *svcCollector) Collect(ch chan<- prometheus.Metric) {
 	if recs, err := c.h.svc.GetAll(ctx, engram.HistoryFilter{}); err == nil {
 		ch <- prometheus.MustNewConstMetric(memoryCountDesc, prometheus.GaugeValue, float64(len(recs)))
 	} else {
+		c.scrapeErrors.Add(1)
+	}
+
+	// The gap is the number search silently forgot; a store that cannot be
+	// inspected (Qdrant today) simply has no series rather than a fake zero.
+	if stats, err := c.h.svc.IndexStats(ctx); err == nil {
+		ch <- prometheus.MustNewConstMetric(vectorIndexedDesc, prometheus.GaugeValue, float64(stats.Indexed))
+		ch <- prometheus.MustNewConstMetric(vectorGapDesc, prometheus.GaugeValue, float64(stats.Missing))
+	} else if !errors.Is(err, engramsvc.ErrIndexNotInspectable) {
 		c.scrapeErrors.Add(1)
 	}
 

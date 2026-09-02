@@ -1,0 +1,14 @@
+# golangci-lint v2 configuration.
+#
+# The linter is pinned (ci.yml, .gitlab-ci.yml). v2 dropped v1's default
+# exclusions, which had hidden ~40 unchecked Close/Flush/print errors that
+# are idiomatic; these presets restore that baseline so the gate measures
+# real findings. Everything it still reports is meant to be fixed, not
+# excluded here.
+version: "2"
+linters:
+  default: standard
+  exclusions:
+    presets:
+      - std-error-handling
+      - common-false-positives

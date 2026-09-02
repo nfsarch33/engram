@@ -17,14 +17,14 @@ func TestRunShadowWrite_BothSucceed_LogsDualID(t *testing.T) {
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{"id": "mem0-id-A"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "mem0-id-A"})
 	}))
 	defer mem0Srv.Close()
 
 	engramSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": "engram-id-B"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "engram-id-B"})
 	}))
 	defer engramSrv.Close()
 
@@ -78,7 +78,7 @@ func TestRunShadowWrite_EngramFails_RecordsDivergence(t *testing.T) {
 
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{"id": "mem0-only"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "mem0-only"})
 	}))
 	defer mem0Srv.Close()
 
@@ -102,7 +102,7 @@ func TestRunShadowWrite_EngramFails_RecordsDivergence(t *testing.T) {
 
 	data, _ := os.ReadFile(tmpLog)
 	var rec ShadowWriteRecord
-	json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
+	_ = json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
 	if !rec.Diverged {
 		t.Error("expected diverged=true when engram down")
 	}
@@ -124,7 +124,7 @@ func TestRunShadowWrite_Mem0Fails_Exit1(t *testing.T) {
 	// mask primary failure.
 	engramSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": "engram-orphan"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "engram-orphan"})
 	}))
 	defer engramSrv.Close()
 
@@ -144,7 +144,7 @@ func TestRunShadowWrite_Mem0Fails_Exit1(t *testing.T) {
 	}
 	data, _ := os.ReadFile(tmpLog)
 	var rec ShadowWriteRecord
-	json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
+	_ = json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
 	if !rec.Diverged {
 		t.Error("expected diverged=true when mem0 fails")
 	}
@@ -172,7 +172,7 @@ func TestRunShadowWrite_RestrictsToConfiguredAppID(t *testing.T) {
 	// Other app IDs must skip the secondary write entirely.
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{"id": "mem0-coord"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "mem0-coord"})
 	}))
 	defer mem0Srv.Close()
 
@@ -180,7 +180,7 @@ func TestRunShadowWrite_RestrictsToConfiguredAppID(t *testing.T) {
 	engramSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		engramHits++
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": "should-not-fire"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "should-not-fire"})
 	}))
 	defer engramSrv.Close()
 
@@ -204,7 +204,7 @@ func TestRunShadowWrite_RestrictsToConfiguredAppID(t *testing.T) {
 	// Log entry should still be written so we can audit which writes were skipped.
 	data, _ := os.ReadFile(tmpLog)
 	var rec ShadowWriteRecord
-	json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
+	_ = json.Unmarshal(bytes.TrimRight(data, "\n"), &rec)
 	if !rec.Skipped {
 		t.Error("expected skipped=true for non-allow-listed app_id")
 	}

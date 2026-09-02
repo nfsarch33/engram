@@ -65,6 +65,8 @@ All configuration is via `ENGRAM_*` environment variables.
 | `ENGRAM_ADDR` | `:8280` | HTTP listen address. |
 | `ENGRAM_DB_PATH` | `engram.db` | SQLite history DB path. |
 | `ENGRAM_COLLECTION` | `engram` | Vector collection name. |
+| `ENGRAM_VECTOR_STORE` | `sqlite` | Vector index: `sqlite` (durable, restored at boot) or `inmem` (lost on restart). `ENGRAM_QDRANT_URL` overrides both. |
+| `ENGRAM_VECTOR_DB_PATH` | `<ENGRAM_DB_PATH minus .db>.vectors.db` | SQLite file for the durable vector index. Back it up together with `ENGRAM_DB_PATH`. |
 | `ENGRAM_EMBEDDING_DIM` | `1536` | Embedding dimension. Use `768` for Ollama `nomic-embed-text`. |
 | `ENGRAM_EMBED_URL` | (empty) | OpenAI-compatible `/v1/embeddings` base URL. Empty = no embedder. |
 | `ENGRAM_EMBED_MODEL` | `text-embedding-3-small` | Embedder model name. |
@@ -82,13 +84,31 @@ All configuration is via `ENGRAM_*` environment variables.
 | `ENGRAM_EMBED_FALLBACK_MODEL` | `embo-01` | Fallback embedder model. |
 | `ENGRAM_EMBED_FALLBACK_KEY` | (empty) | Fallback embedder API key. |
 
+## Durable vector index
+
+The default vector store (`ENGRAM_VECTOR_STORE=sqlite`) writes every vector
+through to `ENGRAM_VECTOR_DB_PATH` and restores the whole index at boot, so a
+restart never empties semantic search and never re-spends embedding calls.
+`GET /metrics` exposes `engram_vector_indexed_count` and
+`engram_vector_index_gap`; a non-zero gap means records exist in history with
+no vector (a restore from backup, an embedder or dimension change, or time
+spent on the in-memory store). Clear it by restarting once with:
+
+```bash
+./bin/engramd --reindex-missing
+```
+
+Only the gap is embedded. Rows stored at a different embedding dimension are
+evicted from the served index at boot (logged) and re-embedded by the same
+flag. Back up `ENGRAM_VECTOR_DB_PATH` together with `ENGRAM_DB_PATH`.
+
 ## HTTP API
 
 Listening on `ENGRAM_ADDR` (default `:8280`):
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/memories` | Add memories (`{messages, user_id, ...}`). |
+| `POST` | `/memories` | Add memories (`{messages, user_id, ...}`; each message is a bare string or a `{role, content}` / `{text}` object). |
 | `POST` | `/search` | Semantic search (`{query, user_id, top_k}`). |
 | `GET`  | `/memories/{id}` | Fetch one memory. |
 | `PUT`  | `/memories/{id}` | Update text. |
@@ -167,6 +187,15 @@ make test-race       # go test -race ./...
 make build-linux     # GOOS=linux GOARCH=amd64 cross-compile
 make docker-build    # docker build -t engramd:<version> .
 make check           # fmt + vet + test-race (CI gate)
+```
+
+The live recall evaluation runs the fixed corpus in
+`internal/integration/testdata/recall/` against a running daemon and writes a
+`rubric_version`-stamped envelope (recall@k, MRR@k) when `ENGRAM_RECALL_OUT` is set:
+
+```bash
+ENGRAM_LIVE_URL=http://127.0.0.1:8280 ENGRAM_RECALL_OUT=/tmp/recall.json \
+  go test -tags integration -race -count=1 -run TestLiveRecall ./internal/integration/...
 ```
 
 Live integration tests against an Ollama embedder are gated behind the
