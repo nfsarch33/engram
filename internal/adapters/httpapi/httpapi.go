@@ -43,6 +43,7 @@ func NewHandler(svc *engramsvc.Service) *Handler {
 	}
 	h.mux.HandleFunc("GET /metrics.json", h.metrics)
 	h.mux.HandleFunc("DELETE /memories", h.deleteAllMemories)
+	h.mux.HandleFunc("GET /memories", h.listMemories)
 	return h
 }
 
@@ -256,13 +257,34 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) deleteAllMemories(w http.ResponseWriter, r *http.Request) {
-	filter := engram.HistoryFilter{
-		UserID:  r.URL.Query().Get("user_id"),
-		AgentID: r.URL.Query().Get("agent_id"),
-		AppID:   r.URL.Query().Get("app_id"),
+// filterFromQuery reads the scoping filter shared by list and delete-all.
+func filterFromQuery(r *http.Request) engram.HistoryFilter {
+	q := r.URL.Query()
+	return engram.HistoryFilter{
+		UserID:      q.Get("user_id"),
+		AgentID:     q.Get("agent_id"),
+		RunID:       q.Get("run_id"),
+		AppID:       q.Get("app_id"),
+		WorkspaceID: q.Get("workspace_id"),
 	}
-	count, err := h.svc.DeleteAll(r.Context(), filter)
+}
+
+// listMemories serves GET /memories?<filter>: the records in scope, in
+// insertion order, for clients that proxy the MCP list tools.
+func (h *Handler) listMemories(w http.ResponseWriter, r *http.Request) {
+	recs, err := h.svc.GetAll(r.Context(), filterFromQuery(r))
+	if err != nil {
+		h.logAndRespond(w, r, err)
+		return
+	}
+	if recs == nil {
+		recs = []engram.MemoryRecord{}
+	}
+	writeJSON(w, http.StatusOK, recs)
+}
+
+func (h *Handler) deleteAllMemories(w http.ResponseWriter, r *http.Request) {
+	count, err := h.svc.DeleteAll(r.Context(), filterFromQuery(r))
 	if err != nil {
 		h.logAndRespond(w, r, err)
 		return
