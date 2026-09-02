@@ -15,7 +15,7 @@ func TestRunShadow_BothSuccess(t *testing.T) {
 
 	engramSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"results": []map[string]any{
 				{"id": "abc-123", "score": 0.95},
 				{"id": "def-456", "score": 0.80},
@@ -26,7 +26,7 @@ func TestRunShadow_BothSuccess(t *testing.T) {
 
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"results": []map[string]any{
 				{"id": "abc-123", "score": 0.92},
 				{"id": "ghi-789", "score": 0.75},
@@ -75,7 +75,7 @@ func TestRunShadow_EngramDown(t *testing.T) {
 
 	mem0Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"results": []any{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}})
 	}))
 	defer mem0Srv.Close()
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	mcpadapter "github.com/nfsarch33/engram/internal/adapters/mcp"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/inmem"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/qdrant"
+	"github.com/nfsarch33/engram/internal/adapters/vectorstore/sqlitevec"
 	"github.com/nfsarch33/engram/internal/app/engramsvc"
 	"github.com/nfsarch33/engram/internal/config"
 	"github.com/nfsarch33/engram/internal/domain/engram"
@@ -32,10 +34,11 @@ import (
 var version = "dev"
 
 type runOpts struct {
-	noEmbed    bool
-	mcpStdio   bool
-	noHTTP     bool
-	mem0Compat bool
+	noEmbed        bool
+	mcpStdio       bool
+	noHTTP         bool
+	mem0Compat     bool
+	reindexMissing bool
 }
 
 func main() {
@@ -44,6 +47,7 @@ func main() {
 	flag.BoolVar(&opts.mcpStdio, "mcp-stdio", false, "serve MCP via stdio JSON-RPC (in addition to HTTP unless --no-http)")
 	flag.BoolVar(&opts.noHTTP, "no-http", false, "disable HTTP server (typically combined with --mcp-stdio)")
 	flag.BoolVar(&opts.mem0Compat, "mem0-compat", false, "additionally serve a Mem0 OSS-compatible HTTP shim on ENGRAM_MEM0COMPAT_ADDR (default :8281)")
+	flag.BoolVar(&opts.reindexMissing, "reindex-missing", false, "at startup, embed and index every history record missing from the vector index (spends embedding calls only on the gap), then serve")
 	showVer := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -106,6 +110,9 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 	if err != nil {
 		return fmt.Errorf("vector store: %w", err)
 	}
+	if closer, ok := vec.(io.Closer); ok {
+		defer closer.Close()
+	}
 
 	embedder, llm := buildAdapters(cfg, opts.noEmbed)
 
@@ -118,6 +125,9 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 			return fmt.Errorf("no embedder configured; set ENGRAM_EMBED_URL or pass --no-embed for dev mode")
 		}
 		return fmt.Errorf("service: %w", err)
+	}
+	if err := reportIndexCoverage(ctx, logger, svc, vec, opts.reindexMissing); err != nil {
+		return err
 	}
 
 	serverErr := make(chan error, 3)
@@ -195,8 +205,10 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 }
 
 // buildVectorStore returns a Qdrant-backed store when ENGRAM_QDRANT_URL is
-// set, otherwise an in-memory store. This ensures docker-compose.prod.yaml
-// Qdrant config is actually honoured at runtime.
+// set (so docker-compose.prod.yaml's Qdrant config is honoured at runtime),
+// otherwise the store ENGRAM_VECTOR_STORE names: the durable SQLite-backed
+// index by default, which restores itself at boot, or the process-memory
+// index that a restart empties.
 func buildVectorStore(cfg config.Config, logger *slog.Logger) (engram.VectorStore, error) {
 	if cfg.HasQdrant() {
 		logger.Info("using Qdrant vector store", "url", cfg.QdrantURL)
@@ -207,8 +219,56 @@ func buildVectorStore(cfg config.Config, logger *slog.Logger) (engram.VectorStor
 			Timeout:    cfg.Timeout,
 		}), nil
 	}
-	logger.Info("using in-memory vector store")
-	return inmem.NewStore()
+	switch cfg.VectorStore {
+	case config.VectorStoreInmem:
+		logger.Warn("using in-memory vector store: the index is lost on every restart",
+			"hint", "set ENGRAM_VECTOR_STORE=sqlite to persist it")
+		return inmem.NewStore()
+	case config.VectorStoreSQLite, "":
+		store, err := sqlitevec.Open(cfg.VectorDBPath)
+		if err != nil {
+			return nil, err
+		}
+		loaded, _ := store.LoadStats()
+		logger.Info("using durable sqlite vector store", "path", cfg.VectorDBPath, "restored", loaded)
+		return store, nil
+	default:
+		return nil, fmt.Errorf("unknown ENGRAM_VECTOR_STORE %q (want %q or %q)", cfg.VectorStore, config.VectorStoreSQLite, config.VectorStoreInmem)
+	}
+}
+
+// reportIndexCoverage logs how much of history the vector index serves,
+// runs the reindex when asked, and warns when records are invisible to
+// search. A store that cannot report its IDs (Qdrant) is logged as such.
+func reportIndexCoverage(ctx context.Context, logger *slog.Logger, svc *engramsvc.Service, vec engram.VectorStore, reindex bool) error {
+	if s, ok := vec.(*sqlitevec.Store); ok {
+		loaded, evicted := s.LoadStats()
+		if evicted > 0 {
+			logger.Warn("vector rows evicted for embedding-dimension mismatch; they will be re-embedded by --reindex-missing",
+				"loaded", loaded, "evicted", evicted)
+		}
+	}
+	if reindex {
+		n, err := svc.ReindexMissing(ctx)
+		if err != nil {
+			return fmt.Errorf("reindex missing: %w", err)
+		}
+		logger.Info("reindex complete", "reindexed", n)
+	}
+	stats, err := svc.IndexStats(ctx)
+	if err != nil {
+		if errors.Is(err, engramsvc.ErrIndexNotInspectable) {
+			logger.Info("vector index coverage unknown: store cannot report its ids")
+			return nil
+		}
+		return fmt.Errorf("index stats: %w", err)
+	}
+	logger.Info("vector index coverage", "records", stats.Records, "indexed", stats.Indexed, "missing", stats.Missing)
+	if stats.Missing > 0 {
+		logger.Warn("records missing from the vector index are invisible to semantic search",
+			"missing", stats.Missing, "hint", "restart with --reindex-missing")
+	}
+	return nil
 }
 
 // buildAdapters constructs the embedder and LLM client from cfg.

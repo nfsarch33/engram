@@ -53,7 +53,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // --- request / response types -----------------------------------------------
 
 type addRequest struct {
-	Messages    []string       `json:"messages"`
+	Messages    messageList    `json:"messages"`
 	UserID      string         `json:"user_id"`
 	AgentID     string         `json:"agent_id"`
 	RunID       string         `json:"run_id"`
@@ -75,6 +75,21 @@ type searchRequest struct {
 
 type updateRequest struct {
 	Text string `json:"text"`
+}
+
+// messageList decodes the `messages` array of an add request. Elements may
+// be bare strings or chat-style objects ({"role":..,"content":..} or
+// {"text":..}); see engramsvc.MessageText for the contract and the history
+// behind it. Anything that is not a JSON array is a decode error.
+type messageList []string
+
+func (m *messageList) UnmarshalJSON(b []byte) error {
+	var raw []any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*m = engramsvc.MessageTexts(raw)
+	return nil
 }
 
 // --- handlers ---------------------------------------------------------------

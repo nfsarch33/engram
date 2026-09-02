@@ -281,7 +281,7 @@ func TestE2E_AddMultiple_ConcurrentWrites(t *testing.T) {
 				return
 			}
 			var recs []map[string]any
-			json.NewDecoder(resp.Body).Decode(&recs)
+			_ = json.NewDecoder(resp.Body).Decode(&recs)
 			resp.Body.Close()
 			if len(recs) > 0 {
 				if id, ok := recs[0]["id"].(string); ok {

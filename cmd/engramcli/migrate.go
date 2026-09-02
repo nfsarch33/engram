@@ -153,7 +153,7 @@ func importToEngram(engramAddr string, m mem0Memory) error {
 
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Engram returned HTTP %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("engram returned HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
