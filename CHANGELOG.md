@@ -26,6 +26,12 @@
 - `engramd --reindex-missing`: embeds and indexes only the history records
   missing from the vector index (restore from backup, embedder change).
 - Metrics `engram_vector_indexed_count` and `engram_vector_index_gap`.
+- `engramd --mcp-stdio --no-http --remote <url>` (default `$ENGRAM_BASE_URL`):
+  the MCP server proxies every tool call to the running daemon instead of
+  opening its own stores. The fleet's MCP configuration already passed that
+  URL to a binary that ignored it and then exited for want of an embedder.
+- `GET /memories?<filter>` lists records in scope; `DELETE /memories` accepts
+  `run_id` and `workspace_id` filters too.
 - Live recall evaluation (`internal/integration`, build tag `integration`,
   gated on `ENGRAM_LIVE_URL`): a fixed corpus scored as recall@5 / MRR@5
   with a `rubric_version` envelope written to `ENGRAM_RECALL_OUT`.

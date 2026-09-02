@@ -22,6 +22,7 @@ import (
 	"github.com/nfsarch33/engram/internal/adapters/httpapi/mem0compat"
 	llmopenai "github.com/nfsarch33/engram/internal/adapters/llm/openai"
 	mcpadapter "github.com/nfsarch33/engram/internal/adapters/mcp"
+	"github.com/nfsarch33/engram/internal/adapters/remote"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/inmem"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/qdrant"
 	"github.com/nfsarch33/engram/internal/adapters/vectorstore/sqlitevec"
@@ -39,6 +40,7 @@ type runOpts struct {
 	noHTTP         bool
 	mem0Compat     bool
 	reindexMissing bool
+	remote         string // daemon URL: MCP stdio proxies to it instead of opening stores
 }
 
 func main() {
@@ -47,6 +49,7 @@ func main() {
 	flag.BoolVar(&opts.mcpStdio, "mcp-stdio", false, "serve MCP via stdio JSON-RPC (in addition to HTTP unless --no-http)")
 	flag.BoolVar(&opts.noHTTP, "no-http", false, "disable HTTP server (typically combined with --mcp-stdio)")
 	flag.BoolVar(&opts.mem0Compat, "mem0-compat", false, "additionally serve a Mem0 OSS-compatible HTTP shim on ENGRAM_MEM0COMPAT_ADDR (default :8281)")
+	flag.StringVar(&opts.remote, "remote", os.Getenv("ENGRAM_BASE_URL"), "with --mcp-stdio --no-http: forward every tool call to the running daemon at this URL (default $ENGRAM_BASE_URL) instead of opening local stores and an embedder")
 	flag.BoolVar(&opts.reindexMissing, "reindex-missing", false, "at startup, embed and index every history record missing from the vector index (spends embedding calls only on the gap), then serve")
 	showVer := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -76,6 +79,12 @@ func run(ctx context.Context, logger *slog.Logger, opts runOpts) error {
 func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts runOpts) error {
 	if opts.noHTTP && !opts.mcpStdio {
 		return fmt.Errorf("--no-http requires --mcp-stdio (otherwise the daemon would have nothing to serve)")
+	}
+	if opts.remote != "" {
+		if !opts.mcpStdio || !opts.noHTTP {
+			return fmt.Errorf("--remote is the MCP stdio proxy mode: it requires --mcp-stdio --no-http")
+		}
+		return runRemoteMCP(ctx, logger, cfg, opts.remote)
 	}
 
 	if opts.mem0Compat {
@@ -201,6 +210,28 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 			return fmt.Errorf("graceful mem0-compat shutdown: %w", err)
 		}
 	}
+	return nil
+}
+
+// runRemoteMCP serves MCP over stdio by forwarding to a running daemon. No
+// history file, no vector index, no embedder: the proxy cannot hold state
+// the daemon does not, so what an agent writes is what search serves.
+func runRemoteMCP(ctx context.Context, logger *slog.Logger, cfg config.Config, target string) error {
+	client, err := remote.New(target, cfg.Timeout)
+	if err != nil {
+		return err
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := client.Ping(pingCtx); err != nil {
+		return fmt.Errorf("remote daemon %s: %w", target, err)
+	}
+	logger.Info("MCP stdio proxying to daemon", "version", version, "remote", target)
+	mcpSrv := mcpadapter.NewServer(mcpadapter.NewAdapter(client), "engram", version)
+	if err := mcpSrv.Serve(ctx, os.Stdin, os.Stdout); err != nil && !errors.Is(err, context.Canceled) {
+		return fmt.Errorf("mcp: %w", err)
+	}
+	logger.Info("engramd (remote MCP) shutting down")
 	return nil
 }
 
