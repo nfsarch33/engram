@@ -1,6 +1,6 @@
 module github.com/nfsarch33/engram
 
-go 1.26.3
+go 1.27.0
 
 require (
 	github.com/mark3labs/mcp-go v0.54.0

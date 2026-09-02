@@ -10,7 +10,7 @@
 #            -e ENGRAM_DB_PATH=/data/engram.db \
 #            -v engram-data:/data engramd:<version>
 
-FROM golang:1.26.3-bookworm AS builder
+FROM golang:1.27-bookworm AS builder
 
 WORKDIR /src
 
