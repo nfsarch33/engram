@@ -5,6 +5,8 @@ go 1.27.0
 require (
 	github.com/mark3labs/mcp-go v0.54.0
 	github.com/oklog/ulid/v2 v2.1.0
+	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/gomega v1.42.1
 	github.com/prometheus/client_golang v1.23.2
 	go.uber.org/goleak v1.3.0
 	modernc.org/sqlite v1.50.1
@@ -25,8 +27,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/onsi/ginkgo/v2 v2.32.1
-	github.com/onsi/gomega v1.42.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
