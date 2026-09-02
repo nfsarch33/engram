@@ -12,9 +12,25 @@ import (
 	"github.com/nfsarch33/engram/internal/domain/engram"
 )
 
+// MemoryService is what the adapter needs from a memory backend. The
+// in-process *engramsvc.Service satisfies it, and so does remote.Client,
+// which forwards every call to a running daemon over HTTP so an MCP stdio
+// process never has to own stores or an embedder of its own.
+type MemoryService interface {
+	Add(ctx context.Context, req engramsvc.AddRequest) ([]engram.MemoryRecord, error)
+	Search(ctx context.Context, req engramsvc.SearchRequest) ([]engramsvc.SearchResult, error)
+	Get(ctx context.Context, req engramsvc.GetRequest) (engram.MemoryRecord, error)
+	Update(ctx context.Context, req engramsvc.UpdateRequest) (engram.MemoryRecord, error)
+	Delete(ctx context.Context, req engramsvc.DeleteRequest) error
+	DeleteAll(ctx context.Context, filter engram.HistoryFilter) (int, error)
+	GetAll(ctx context.Context, filter engram.HistoryFilter) ([]engram.MemoryRecord, error)
+	History(ctx context.Context, id engram.MemoryID) ([]engram.MemoryEvent, error)
+	HealthCheck(ctx context.Context) engramsvc.HealthResult
+}
+
 // Adapter exposes the Engram service as a set of MCP tools.
 type Adapter struct {
-	svc    *engramsvc.Service
+	svc    MemoryService
 	tools  []mcplib.Tool
 	tracer *agentrace.Emitter
 }
@@ -22,7 +38,7 @@ type Adapter struct {
 // NewAdapter creates an Adapter for the given service. It registers both the
 // canonical engram_* tools and mem0_* aliases so Engram can serve as a drop-in
 // replacement for mem0-mcp-go.
-func NewAdapter(svc *engramsvc.Service, opts ...Option) *Adapter {
+func NewAdapter(svc MemoryService, opts ...Option) *Adapter {
 	a := &Adapter{svc: svc}
 	for _, o := range opts {
 		o(a)

@@ -110,6 +110,7 @@ Listening on `ENGRAM_ADDR` (default `:8280`):
 |---|---|---|
 | `POST` | `/memories` | Add memories (`{messages, user_id, ...}`; each message is a bare string or a `{role, content}` / `{text}` object). |
 | `POST` | `/search` | Semantic search (`{query, user_id, top_k}`). |
+| `GET`  | `/memories?user_id=&agent_id=&run_id=&app_id=&workspace_id=` | List memories in scope (insertion order). |
 | `GET`  | `/memories/{id}` | Fetch one memory. |
 | `PUT`  | `/memories/{id}` | Update text. |
 | `DELETE` | `/memories/{id}` | Delete. |
@@ -158,6 +159,14 @@ Backward-compatible aliases (for agents migrating from other memory services):
 - `mem0_get_all` -> list all (filter by user/agent/app/run/workspace)
 - `mem0_delete` -> `engram_delete`
 - `mem0_doctor` -> health check
+
+For editor and agent integrations, run the MCP server as a **proxy to the
+daemon** rather than a second engine: no local database, no embedder, one
+shared index. `--remote` defaults to `$ENGRAM_BASE_URL`.
+
+```bash
+ENGRAM_BASE_URL=http://127.0.0.1:8280 ./bin/engramd --mcp-stdio --no-http --remote http://127.0.0.1:8280
+```
 
 To run HTTP and MCP at the same time, omit `--no-http`:
 
