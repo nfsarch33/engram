@@ -1,6 +1,6 @@
 # Engram -- Agent Guidelines
 
-- Repo: `https://github.com/nfsarch33/engram`
+- Repo: `https://github.com/<redacted>/engram`
 - **Purpose**: Personal Go memory engine replacing Mem0 OSS (ADR-063). Hexagonal
   architecture with HTTP API, MCP server, mem0-compat shim, CLI, and migration tools.
 - **Status**: PRIMARY memory engine (switched 2026-05-24). Mem0 OSS is RETIRED.
@@ -46,5 +46,5 @@ Max 3 direct Go dependencies (SQLite, ULID, mcp-go).
 
 ## Identity
 
-- Personal repos: `nfsarch33`
+- Personal repos: `<redacted>`
 - NEVER use Zendesk identity for this repo.
