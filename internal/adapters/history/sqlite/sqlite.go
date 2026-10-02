@@ -182,6 +182,14 @@ func (s *Store) ListRecords(ctx context.Context, f engram.HistoryFilter) ([]engr
 		query += " AND workspace_id=?"
 		args = append(args, f.WorkspaceID)
 	}
+	if f.AppID != "" {
+		// The app scope is an isolation boundary, not a hint: an app_id
+		// filter must never return (or, via DeleteAll, delete) another
+		// app's records. An empty filter still lists everything — the
+		// compatibility adapter relies on that for parity reads.
+		query += " AND app_id=?"
+		args = append(args, f.AppID)
+	}
 	// Insertion order (rowid), not created_at: the wall clock on a host can
 	// step backwards, and a listing that reorders on it reorders history.
 	query += " ORDER BY rowid ASC"
