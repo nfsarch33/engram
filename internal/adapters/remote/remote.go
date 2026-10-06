@@ -35,11 +35,22 @@ type Client struct {
 // Option customises New.
 type Option func(*Client)
 
-// WithAPIKey sends "Authorization: Bearer <key>" on every request. The plane's
-// bearer gate (engram.cylrl.dev) requires it; loopback daemons ignore it.
-// The key is only ever attached to the request, never returned or logged.
+// WithAPIKey sends "Authorization: Bearer <key>" on every request. An
+// authenticating reverse proxy in front of a remote daemon requires it;
+// loopback daemons ignore it. The key is only ever attached to the request,
+// never returned or logged.
 func WithAPIKey(key string) Option {
 	return func(c *Client) { c.apiKey = key }
+}
+
+// loopbackHost reports whether host is a loopback target (name or literal).
+func loopbackHost(host string) bool {
+	h := strings.ToLower(strings.Trim(host, "[]"))
+	switch h {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
 }
 
 // New returns a client for the daemon at baseURL (scheme://host:port, no
@@ -57,6 +68,11 @@ func New(baseURL string, timeout time.Duration, opts ...Option) (*Client, error)
 		if opt != nil {
 			opt(c)
 		}
+	}
+	// A key sent over cleartext http to a non-loopback host would travel in
+	// the clear: refuse that combination outright at construction time.
+	if c.apiKey != "" && u.Scheme == "http" && !loopbackHost(u.Hostname()) {
+		return nil, fmt.Errorf("remote: refusing API key over cleartext http to non-loopback %s", u.Host)
 	}
 	return c, nil
 }
