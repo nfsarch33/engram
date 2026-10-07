@@ -12,7 +12,7 @@ import (
 )
 
 // stubBearerDaemon answers 401 to every request lacking "Authorization: Bearer
-// <key>" — the plane's gate behaviour (ADR-0102 engram vhost). With the header
+// <key>" — an authenticating reverse proxy's behaviour. With the header
 // it serves the two endpoints the forwarder needs at startup.
 func stubBearerDaemon(t *testing.T, key string) *httptest.Server {
 	t.Helper()
