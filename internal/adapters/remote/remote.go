@@ -27,13 +27,35 @@ import (
 
 // Client talks to a running engramd over HTTP.
 type Client struct {
-	base string
-	http *http.Client
+	base   string
+	http   *http.Client
+	apiKey string // sent as Authorization: Bearer on every request when set; never logged
+}
+
+// Option customises New.
+type Option func(*Client)
+
+// WithAPIKey sends "Authorization: Bearer <key>" on every request. An
+// authenticating reverse proxy in front of a remote daemon requires it;
+// loopback daemons ignore it. The key is only ever attached to the request,
+// never returned or logged.
+func WithAPIKey(key string) Option {
+	return func(c *Client) { c.apiKey = key }
+}
+
+// loopbackHost reports whether host is a loopback target (name or literal).
+func loopbackHost(host string) bool {
+	h := strings.ToLower(strings.Trim(host, "[]"))
+	switch h {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
 }
 
 // New returns a client for the daemon at baseURL (scheme://host:port, no
 // trailing path). timeout bounds every request.
-func New(baseURL string, timeout time.Duration) (*Client, error) {
+func New(baseURL string, timeout time.Duration, opts ...Option) (*Client, error) {
 	u, err := url.Parse(strings.TrimRight(baseURL, "/"))
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("remote: base URL %q must be scheme://host[:port]", baseURL)
@@ -41,7 +63,18 @@ func New(baseURL string, timeout time.Duration) (*Client, error) {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	return &Client{base: u.String(), http: &http.Client{Timeout: timeout}}, nil
+	c := &Client{base: u.String(), http: &http.Client{Timeout: timeout}}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+	// A key sent over cleartext http to a non-loopback host would travel in
+	// the clear: refuse that combination outright at construction time.
+	if c.apiKey != "" && u.Scheme == "http" && !loopbackHost(u.Hostname()) {
+		return nil, fmt.Errorf("remote: refusing API key over cleartext http to non-loopback %s", u.Host)
+	}
+	return c, nil
 }
 
 // --- MemoryService ------------------------------------------------------------
@@ -174,6 +207,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	c.auth(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("remote: %s %s: %w", method, path, err)
@@ -218,12 +252,21 @@ func filterQuery(f engram.HistoryFilter) string {
 // ErrUnreachable is a convenience for callers probing the daemon at startup.
 var ErrUnreachable = errors.New("remote: daemon unreachable")
 
+// auth attaches the bearer when one is configured. The key is only ever put
+// on the request; it is never returned in errors or logged.
+func (c *Client) auth(req *http.Request) {
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+}
+
 // Ping verifies the daemon answers GET /healthz.
 func (c *Client) Ping(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/healthz", nil)
 	if err != nil {
 		return err
 	}
+	c.auth(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnreachable, err)

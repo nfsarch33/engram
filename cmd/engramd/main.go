@@ -217,7 +217,9 @@ func runWith(ctx context.Context, logger *slog.Logger, cfg config.Config, opts r
 // history file, no vector index, no embedder: the proxy cannot hold state
 // the daemon does not, so what an agent writes is what search serves.
 func runRemoteMCP(ctx context.Context, logger *slog.Logger, cfg config.Config, target string) error {
-	client, err := remote.New(target, cfg.Timeout)
+	// The remote path can point at an authenticated reverse proxy; the bearer
+	// arrives via ENGRAM_API_KEY and is only attached, never logged.
+	client, err := remote.New(target, cfg.Timeout, remote.WithAPIKey(cfg.APIKey))
 	if err != nil {
 		return err
 	}
